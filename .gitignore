@@ -1,0 +1,6 @@
+data/
+.venv/
+.DS_Store
+**/*.ipynb
+.ruff_cache/
+__pycache__/
