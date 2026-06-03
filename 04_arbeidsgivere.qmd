@@ -30,6 +30,8 @@ print(
 )
 ```
 
+Anonym arbeidsgiver er bare at det i excelarket står "Arbeidsgiver 1" eller liknende.
+
 ## Bransjefordeling
 
 Antall ganger arbeidsgivere fra hver bransje har deltatt på WorkOp.
