@@ -1,0 +1,73 @@
+---
+title: "WorkOp — sammendrag"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import warnings
+warnings.filterwarnings("ignore")
+import datetime
+
+from src.workop.extract import extract_all
+from src.workop.transform import legg_til_kalkulerte_kolonner, estimat, snitt_fra_data
+
+DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
+df_raw, missing = extract_all(DATAFIL)
+df = legg_til_kalkulerte_kolonner(df_raw)
+est = estimat(df)
+snitt = snitt_fra_data(df)
+aktive = df[df["har_data"]]
+```
+
+## Nøkkeltall
+
+```{python}
+#| echo: false
+totalt_oppmotte = int(aktive["oppmotte"].sum())
+totalt_jobb = int(aktive["fatt_jobb"].sum())
+antall_workop = len(aktive)
+andel = totalt_jobb / totalt_oppmotte * 100
+
+from IPython.display import HTML
+
+html = f"""
+<div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1.5rem 0;">
+  <div style="background:#f0f8ff; border-left:4px solid #0067C5; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
+    <div style="font-size:2rem; font-weight:700; color:#0067C5;">{antall_workop}</div>
+    <div style="color:#555;">WorkOp-er gjennomført</div>
+  </div>
+  <div style="background:#f0f8ff; border-left:4px solid #0067C5; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
+    <div style="font-size:2rem; font-weight:700; color:#0067C5;">{totalt_oppmotte}</div>
+    <div style="color:#555;">Totalt oppmøtte</div>
+  </div>
+  <div style="background:#f0fff4; border-left:4px solid #06893A; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
+    <div style="font-size:2rem; font-weight:700; color:#06893A;">{totalt_jobb}</div>
+    <div style="color:#555;">Fikk jobb</div>
+  </div>
+  <div style="background:#f0fff4; border-left:4px solid #06893A; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
+    <div style="font-size:2rem; font-weight:700; color:#06893A;">{andel:.0f}%</div>
+    <div style="color:#555;">Andel fikk jobb</div>
+  </div>
+</div>
+"""
+HTML(html)
+```
+
+## Resultater per WorkOp
+
+```{python}
+#| echo: false
+from src.workop.plots import fig_deltakere_jobb, fig_deltakere_jobb_tid
+fig_deltakere_jobb(df).show()
+fig_deltakere_jobb_tid(df).show()
+```
+
+## Om WorkOp
+
+WorkOp er et konsept der Nav-veiledere og arbeidsgivere møtes med arbeidsledige
+i en strukturert setting for å koble kandidater direkte til ledige stillinger.
+Hvert arrangement samler typisk 15–35 deltakere og 5–10 arbeidsgivere.
+
+Denne rapporten oppdateres automatisk når nye data er tilgjengelig.
+Sist oppdatert: `{python} datetime.date.today().strftime('%d.%m.%Y')`

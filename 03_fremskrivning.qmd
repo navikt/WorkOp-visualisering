@@ -1,0 +1,110 @@
+---
+title: "Fremskrivning"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import warnings
+warnings.filterwarnings("ignore")
+
+from src.workop.extract import extract_all
+from src.workop.transform import legg_til_kalkulerte_kolonner, estimat, snitt_fra_data, bootstrap_usikkerhet
+from src.workop.plots import fig_estimat, fig_jobb_usikkerhet
+
+DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
+df_raw, _ = extract_all(DATAFIL)
+df = legg_til_kalkulerte_kolonner(df_raw)
+snitt = snitt_fra_data(df)
+```
+
+## Estimeringsmodell
+
+Fremskrivningen baserer seg på historiske snitt og antatt oppskalering av WorkOp
+til flere Nav-kontorer.
+
+**Forutsetninger:**
+
+Fylkene lærer opp egne kontorer, og i løpet av 2026 blir alle 12 Nav-fylkene onboardet, som gir et stort hopp i antall WorkOp fra 2026 til 2027.
+
+```{python}
+#| echo: false
+from src.workop.transform import KONTORER_PLAN, WORKOP_PER_KONTOR_PER_AAR
+
+print("Snitt antall i jobb per WorkOp:   {:.2f} personer".format(snitt["snitt_antall_i_jobb"]))
+print(f"Snitt oppmøtte per WorkOp:   {snitt['snitt_oppmotte']:.1f} personer")
+print(f"Snitt andel som fikk jobb:   {snitt['snitt_andel_jobb']:.1%}")
+print(f"Antall WorkOp per kontor/år: {WORKOP_PER_KONTOR_PER_AAR}")
+print()
+print("Planlagt antall kontorer:")
+for aar, n in sorted(KONTORER_PLAN.items()):
+    print(f"  {aar}: {n} kontorer")
+```
+
+::: {.callout-tip}
+Juster parameterne i `src/workop/transform.py` for å teste alternative scenarier.
+Endre `KONTORER_PLAN` og `WORKOP_PER_KONTOR_PER_AAR`.
+:::
+
+## Estimert utvikling
+
+Historiske år vises som faktiske tall. Fremtidige år (stripet) er estimater
+basert på forutsetningene over.
+
+```{python}
+#| echo: false
+est = estimat(df)
+fig_estimat(df, est).show()
+```
+
+## Estimattabell
+
+```{python}
+#| echo: false
+import pandas as pd
+
+visning = est.copy()
+visning["Kilde"] = visning["kilde"].map({"historisk": "✅ Faktisk", "estimat": "📊 Estimat"})
+visning["Kontorer"] = visning["antall_kontorer"].fillna("–").apply(
+    lambda x: str(int(x)) if x != "–" else "–"
+)
+visning = visning.rename(columns={
+    "aar": "År",
+    "antall_workop": "Antall WorkOp",
+    "est_oppmotte": "Estimert oppmøtte",
+    "est_fatt_jobb": "Estimert fikk jobb",
+})
+
+display(visning[["År", "Kilde", "Kontorer", "Antall WorkOp",
+                  "Estimert oppmøtte", "Estimert fikk jobb"]]
+    .set_index("År")
+    .style.format({
+        "Estimert oppmøtte": "{:.0f}",
+        "Estimert fikk jobb": "{:.0f}",
+    }, na_rep="–")
+)
+```
+
+## Usikkerhet
+
+Fremskrivningen er en lineær ekstrapolasjon og tar ikke hensyn til:
+
+- Sesongvariasjon
+- Endringer i arbeidsmarkedet
+- Geografiske forskjeller mellom Nav-kontorer
+- Opplæringskurve for nye kontorer
+
+Bruk tallene som størrelsesorden, ikke presise prognoser.
+
+## Estimat med konfidensintervall
+
+Båndet viser 95 % konfidensintervall beregnet med bootstrap: for hvert fremtidsår
+trekkes `k` verdier (én per estimert WorkOp) fra historiske observasjoner og summeres.
+Dette gjentas 5 000 ganger. Båndet reflekterer reell variasjon mellom arrangementene
+— ikke bare usikkerhet i snittet.
+
+```{python}
+#| echo: false
+boot = bootstrap_usikkerhet(df)
+fig_jobb_usikkerhet(boot).show()
+```

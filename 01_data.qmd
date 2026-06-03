@@ -1,0 +1,84 @@
+---
+title: "Datagrunnlag"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import warnings
+warnings.filterwarnings("ignore")
+
+from src.workop.extract import extract_all
+from src.workop.transform import legg_til_kalkulerte_kolonner
+
+DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
+df_raw, missing = extract_all(DATAFIL)
+df = legg_til_kalkulerte_kolonner(df_raw)
+```
+
+## Alle WorkOp-er
+
+```{python}
+#| echo: false
+import pandas as pd
+
+visning = df[df["har_data"]].copy()
+visning["Dato"] = visning["dato"].dt.strftime("%d.%m.%Y").fillna("–")
+visning["Sted/tittel"] = visning["title_kort"].fillna("–")
+visning = visning.rename(columns={
+    "workop_nr": "Nr.",
+    "oppmotte_forberedende": "Forb. WS",
+    "oppmotte": "WorkOp",
+    "arbeidsgivere": "Arb.givere",
+    "innkalt_intervju": "Innkalt int.",
+    "fatt_jobb": "Fikk jobb",
+    "fatt_jobb_tiltak": "Fikk jobb m/ tiltak",
+})
+kolonner = ["Nr.", "Dato", "Sted/tittel", "Fikk jobb", "WorkOp", "Arb.givere",
+            "Innkalt int.", "Fikk jobb m/ tiltak", "Forb. WS"]
+display(visning[kolonner].set_index("Nr.").style
+    .format({
+        "Forb. WS": "{:.0f}",
+        "WorkOp": "{:.0f}",
+        "Arb.givere": "{:.0f}",
+        "Innkalt int.": "{:.0f}",
+        "Fikk jobb": "{:.0f}",
+        "Fikk jobb m/ tiltak": "{:.0f}",
+    }, na_rep="–")
+    .set_table_styles([{"selector": "th", "props": [("font-size", "0.9rem")]}])
+)
+```
+
+## Ark uten data
+
+Følgende ark er registrert som kommende WorkOp-er (placeholder) eller mangler
+resultattall:
+
+```{python}
+#| echo: false
+if missing:
+    pd.DataFrame({"Arknavn": missing}).style.hide(axis="index")
+else:
+    print("Ingen ark uten data.")
+```
+
+## Datakvalitet
+
+```{python}
+#| echo: false
+aktive = df[df["har_data"]]
+uten_dato = aktive[aktive["dato"].isna()]
+
+print(f"WorkOp-er med data: {len(aktive)}")
+print(f"Derav uten parsbar dato: {len(uten_dato)}")
+
+if len(uten_dato) > 0:
+    print("\nArk uten dato:")
+    for _, r in uten_dato.iterrows():
+        print(f"  WorkOp {r['workop_nr']}: raw_title = {r['raw_title']!r}")
+```
+
+::: {.callout-note}
+WorkOp-er uten parsbar dato vises likevel i tabellen og teller med i alle totaltall.
+De mangler bare presis plassering på tidslinja i figurene.
+:::

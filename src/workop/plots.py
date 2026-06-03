@@ -1,0 +1,702 @@
+"""
+Plotly-figurer for WorkOp-visualiseringer.
+
+Alle funksjoner returnerer et plotly.graph_objects.Figure-objekt
+som kan vises i Quarto (.qmd) eller notebook.
+
+Bruk:
+    from src.workop.plots import (
+        fig_deltakere_jobb,
+        fig_kumulativ,
+        fig_andel_jobb,
+        fig_estimat,
+        fig_innsatsgrupper,
+        fig_innsatsgrupper_aar,
+        fig_bransje,
+        fig_bedriftsstorrelse,
+        fig_jobb_usikkerhet,
+        fig_fordeling_jobb,
+    )
+"""
+
+from __future__ import annotations
+
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+# ---------------------------------------------------------------------------
+# Fargepalett (Nav-inspirert, tilgjengelig)
+# ---------------------------------------------------------------------------
+FARGE_OPPMOTTE = "#0067C5"    # Nav-blå
+FARGE_JOBB = "#06893A"        # Nav-grønn
+FARGE_ESTIMAT = "#C77300"     # Oransje (fremskrivning)
+FARGE_HISTORISK = "#0067C5"
+
+FARGE_NEDSATT = "#368DA8"
+FARGE_VEILEDNING = "#83C3D7"
+FARGE_GODE = "#B3DCE8"
+FARGE_TILTAK = "#005B82"
+
+PLOTLY_TEMPLATE = "plotly_white"
+
+# Legend nederst og toppmargin for lang tittel — unngår overlapp med Plotly-toolbar
+_LEGEND_BUNN = dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5)
+_MARGIN = dict(t=70, b=80)
+
+
+def _dato_eller_nr(df: pd.DataFrame) -> list:
+    """Bruker dato på x-akse om tilgjengelig, ellers workop_nr."""
+    if "dato" in df.columns and df["dato"].notna().any():
+        x = df["dato"].dt.strftime("%Y-%m-%d").where(df["dato"].notna(), None)
+    else:
+        x = df["workop_nr"].astype(str)
+    return x.tolist()
+
+
+def _bygg_customdata(aktive: pd.DataFrame) -> list:
+    """Lager customdata-liste med [dato_str, sted] per rad."""
+    dato_str = aktive["dato"].dt.strftime("%d.%m.%Y").fillna("dato ukjent")
+    sted = (
+        aktive["raw_title"]
+        .fillna("")
+        .str.replace(r"^WorkOp\s*(tid/sted:?\s*)?", "", regex=True)
+        .str.strip()
+        .replace("", "sted ukjent")
+    )
+    return list(zip(dato_str.tolist(), sted.tolist()))
+
+
+def fig_deltakere_jobb(df: pd.DataFrame) -> go.Figure:
+    """
+    Stablet søylediagram med oppmøtte og fikk jobb per WorkOp.
+    X-akse: WorkOp-nr. Hover: dato og stedsnavn fra raw_title.
+    """
+    aktive = df[df["har_data"]].copy()
+    x = aktive["workop_nr"].astype(str).tolist()
+    customdata = _bygg_customdata(aktive)
+    ikke_jobb = (aktive["oppmotte"] - aktive["fatt_jobb"]).tolist()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=x,
+        y=aktive["fatt_jobb"].tolist(),
+        name="Fikk jobb",
+        marker_color=FARGE_JOBB,
+        hovertemplate=(
+            "<b>WorkOp %{x}</b><br>"
+            "%{customdata[0]} — %{customdata[1]}<br>"
+            "Fikk jobb: %{y}<extra></extra>"
+        ),
+        customdata=customdata,
+    ))
+    fig.add_trace(go.Bar(
+        x=x,
+        y=ikke_jobb,
+        name="Oppmøtte uten jobb",
+        marker_color=FARGE_OPPMOTTE,
+        opacity=0.5,
+        hovertemplate=(
+            "<b>WorkOp %{x}</b><br>"
+            "%{customdata[0]} — %{customdata[1]}<br>"
+            "Uten jobb: %{y}<extra></extra>"
+        ),
+        customdata=customdata,
+    ))
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Oppmøtte og antall som fikk jobb per WorkOp",
+        xaxis_title="WorkOp nr.",
+        yaxis_title="Antall personer",
+        barmode="stack",
+        legend=_LEGEND_BUNN,
+        hovermode="x unified",
+        margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
+    """
+    Stablet søylediagram med programvekst over tid — kvartalsvis aggregering.
+
+    Grupper alle aktive WorkOps med parsbar dato per kvartal. Tomme kvartaler
+    (ingen WorkOp) vises som 0 for å synliggjøre gapene i programmet.
+    WorkOps uten dato nevnes i tittelen.
+    """
+    aktive = df[df["har_data"]].copy()
+    med_dato = aktive[aktive["dato"].notna()].copy()
+    antall_uten = int(aktive["dato"].isna().sum())
+
+    med_dato["kvartal"] = med_dato["dato"].dt.to_period("Q")
+    kvartalsvis = (
+        med_dato.groupby("kvartal")
+        .agg(oppmotte=("oppmotte", "sum"), fatt_jobb=("fatt_jobb", "sum"), antall=("workop_nr", "count"))
+        .reset_index()
+    )
+
+    alle_kvartaler = pd.period_range(kvartalsvis["kvartal"].min(), kvartalsvis["kvartal"].max(), freq="Q")
+    kvartalsvis = kvartalsvis.set_index("kvartal").reindex(alle_kvartaler, fill_value=0).reset_index()
+    kvartalsvis.columns = ["kvartal", "oppmotte", "fatt_jobb", "antall"]
+
+    labels = kvartalsvis["kvartal"].map(lambda p: f"Q{p.quarter} {p.year}").tolist()
+    ikke_jobb = (kvartalsvis["oppmotte"] - kvartalsvis["fatt_jobb"]).tolist()
+    customdata = list(zip(kvartalsvis["antall"].tolist(), kvartalsvis["oppmotte"].tolist()))
+
+    note = f" ({antall_uten} WorkOps uten dato er utelatt)" if antall_uten else ""
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels,
+        y=kvartalsvis["fatt_jobb"].tolist(),
+        name="Fikk jobb",
+        marker_color=FARGE_JOBB,
+        customdata=customdata,
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "%{customdata[0]} WorkOps — %{customdata[1]} oppmøtte<br>"
+            "Fikk jobb: <b>%{y}</b><extra></extra>"
+        ),
+    ))
+    fig.add_trace(go.Bar(
+        x=labels,
+        y=ikke_jobb,
+        name="Oppmøtte uten jobb",
+        marker_color=FARGE_OPPMOTTE,
+        opacity=0.5,
+        customdata=customdata,
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "%{customdata[0]} WorkOps — %{customdata[1]} oppmøtte<br>"
+            "Uten jobb: %{y}<extra></extra>"
+        ),
+    ))
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=f"Programvekst over tid — oppmøtte og fikk jobb per kvartal{note}",
+        xaxis_title="Kvartal",
+        yaxis_title="Antall personer",
+        barmode="stack",
+        legend=_LEGEND_BUNN,
+        hovermode="x unified",
+        margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
+    """Kumulativ sum oppmøtte og fått jobb over alle arrangement."""
+    aktive = df[df["har_data"]].copy()
+
+    if "kumulativ_oppmotte" not in aktive.columns:
+        aktive["kumulativ_oppmotte"] = aktive["oppmotte"].cumsum()
+        aktive["kumulativ_fatt_jobb"] = aktive["fatt_jobb"].cumsum()
+
+    x = _dato_eller_nr(aktive)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=aktive["kumulativ_oppmotte"].tolist(),
+        mode="lines+markers",
+        name="Kumulativt oppmøtte",
+        fill="tonexty",
+        fillcolor="rgba(0, 103, 197, 0.1)",
+        line=dict(color=FARGE_OPPMOTTE, width=2),
+    ))
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=aktive["kumulativ_fatt_jobb"].tolist(),
+        mode="lines+markers",
+        name="Kumulativt fikk jobb",
+        fill="tozeroy",
+        fillcolor="rgba(6, 137, 58, 0.2)",
+        line=dict(color=FARGE_JOBB, width=2),
+    ))
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Kumulativt antall deltakere og jobbplasseringer",
+        xaxis_title="Dato",
+        yaxis_title="Antall (kumulativt)",
+        legend=_LEGEND_BUNN,
+        margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_andel_jobb(df: pd.DataFrame) -> go.Figure:
+    """Søylediagram: andel (%) som fikk jobb per arrangement."""
+    aktive = df[df["har_data"]].copy()
+
+    andel = (aktive["fatt_jobb"] / aktive["oppmotte"] * 100).round(1)
+    x = aktive["workop_nr"].astype(str).tolist()
+    hover = aktive["raw_title"].fillna(aktive["workop_nr"].astype(str)).tolist()
+
+    snitt = andel.mean()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=x,
+        y=andel.tolist(),
+        marker_color=FARGE_JOBB,
+        opacity=0.85,
+        name="Andel fikk jobb (%)",
+        hovertemplate="%{customdata}<br>Andel: %{y:.1f}%<extra></extra>",
+        customdata=hover,
+    ))
+    fig.add_hline(
+        y=snitt,
+        line_dash="dash",
+        line_color=FARGE_ESTIMAT,
+        annotation_text=f"Snitt {snitt:.1f}%",
+        annotation_position="top right",
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Andel deltakere som fikk jobb per WorkOp",
+        xaxis_title="WorkOp nr.",
+        yaxis_title="Andel (%)",
+        yaxis_range=[0, 100],
+        margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_estimat(df: pd.DataFrame, estimat_df: pd.DataFrame) -> go.Figure:
+    """
+    Fremskrivning 2026–2029.
+    Faktiske data som søyler (per år), estimerte år som halvgjennomsiktige søyler.
+    """
+    fig = go.Figure()
+
+    historisk = estimat_df[estimat_df["kilde"] == "historisk"]
+    fremskrivning = estimat_df[estimat_df["kilde"] == "estimat"]
+
+    fig.add_trace(go.Bar(
+        x=historisk["aar"].astype(str).tolist(),
+        y=historisk["est_fatt_jobb"].tolist(),
+        name="Faktisk: fikk jobb",
+        marker_color=FARGE_JOBB,
+        hovertemplate="År %{x}<br>Fikk jobb: %{y:.0f}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        x=historisk["aar"].astype(str).tolist(),
+        y=historisk["est_oppmotte"].tolist(),
+        name="Faktisk: oppmøtte",
+        marker_color=FARGE_OPPMOTTE,
+        opacity=0.5,
+        hovertemplate="År %{x}<br>Oppmøtte: %{y:.0f}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        x=fremskrivning["aar"].astype(str).tolist(),
+        y=fremskrivning["est_fatt_jobb"].tolist(),
+        name="Estimat: fikk jobb",
+        marker_color=FARGE_JOBB,
+        opacity=0.4,
+        marker_pattern_shape="/",
+        hovertemplate=(
+            "År %{x} (estimat)<br>"
+            "Kontorer: %{customdata[0]}<br>"
+            "Antall WorkOp: %{customdata[1]}<br>"
+            "Estimert fikk jobb: %{y:.0f}<extra></extra>"
+        ),
+        customdata=list(zip(
+            fremskrivning["antall_kontorer"].tolist(),
+            fremskrivning["antall_workop"].tolist(),
+        )),
+    ))
+    fig.add_trace(go.Bar(
+        x=fremskrivning["aar"].astype(str).tolist(),
+        y=fremskrivning["est_oppmotte"].tolist(),
+        name="Estimat: oppmøtte",
+        marker_color=FARGE_OPPMOTTE,
+        opacity=0.25,
+        marker_pattern_shape="/",
+        hovertemplate=(
+            "År %{x} (estimat)<br>"
+            "Estimert oppmøtte: %{y:.0f}<extra></extra>"
+        ),
+    ))
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Faktiske resultater og fremskrivning per år",
+        xaxis_title="År",
+        yaxis_title="Antall personer",
+        barmode="overlay",
+        legend=_LEGEND_BUNN,
+        margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_innsatsgrupper(df: pd.DataFrame) -> go.Figure:
+    """Stablet søylediagram: fordeling nedsatt/veiledning/gode per arrangement."""
+    aktive = df[df["har_data"]].copy()
+    x = aktive["workop_nr"].astype(str).tolist()
+    hover = aktive["raw_title"].fillna(aktive["workop_nr"].astype(str)).tolist()
+
+    def trace(col: str, name: str, farge: str) -> go.Bar:
+        return go.Bar(
+            x=x,
+            y=aktive[col].fillna(0).tolist(),
+            name=name,
+            marker_color=farge,
+            hovertemplate=f"%{{customdata}}<br>{name}: %{{y}}<extra></extra>",
+            customdata=hover,
+        )
+
+    fig = go.Figure([
+        trace("fatt_jobb_tiltak", "Med tiltak", FARGE_TILTAK),
+        trace("fatt_jobb_nedsatt", "Nedsatt arbeidsevne", FARGE_NEDSATT),
+        trace("fatt_jobb_veiledning", "Trenger veiledning", FARGE_VEILEDNING),
+        trace("fatt_jobb_gode", "Gode muligheter", FARGE_GODE),
+    ])
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Fordeling av innsatsgrupper blant de som fikk jobb",
+        xaxis_title="WorkOp nr.",
+        yaxis_title="Antall",
+        barmode="stack",
+        legend=_LEGEND_BUNN,
+        margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_innsatsgrupper_aar(df: pd.DataFrame) -> go.Figure:
+    """
+    Stablet søylediagram: innsatsgrupper aggregert per år.
+
+    Kategoriene er nedsatt arbeidsevne, trenger veiledning, gode muligheter og ukjent
+    (der delkategoriene ikke summerer til totalen). Totalen vises som tekst på toppen.
+    """
+    aktive = df[df["har_data"]].copy()
+    aktive["aar"] = aktive["dato"].dt.year.fillna(aktive["fallback_year"]).astype(int)
+
+    aktive["_del_sum"] = aktive[["fatt_jobb_nedsatt", "fatt_jobb_veiledning", "fatt_jobb_gode"]].sum(axis=1)
+    aktive["fatt_jobb_ukjent"] = (aktive["fatt_jobb"] - aktive["_del_sum"]).clip(lower=0)
+
+    grp = (
+        aktive.groupby("aar")
+        .agg(
+            nedsatt=("fatt_jobb_nedsatt", "sum"),
+            veiledning=("fatt_jobb_veiledning", "sum"),
+            gode=("fatt_jobb_gode", "sum"),
+            ukjent=("fatt_jobb_ukjent", "sum"),
+            totalt=("fatt_jobb", "sum"),
+        )
+        .reset_index()
+    )
+
+    aar = grp["aar"].astype(str).tolist()
+    totalt = grp["totalt"].tolist()
+
+    fig = go.Figure()
+    for col, name, farge in [
+        ("nedsatt", "Nedsatt arbeidsevne", FARGE_NEDSATT),
+        ("veiledning", "Trenger veiledning", FARGE_VEILEDNING),
+        ("gode", "Gode muligheter", FARGE_GODE),
+        ("ukjent", "Ukjent innsatsgruppe", "#AAAAAA"),
+    ]:
+        fig.add_trace(go.Bar(
+            x=aar,
+            y=grp[col].tolist(),
+            name=name,
+            marker_color=farge,
+            hovertemplate=f"{name}: %{{y}}<extra></extra>",
+        ))
+
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Innsatsgrupper blant de som fikk jobb — aggregert per år",
+        xaxis=dict(title="År", type="category"),
+        yaxis_title="Antall",
+        barmode="stack",
+        legend=_LEGEND_BUNN,
+        margin=_MARGIN,
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Arbeidsgiverplott
+# ---------------------------------------------------------------------------
+
+# Fargepalett for kategoriske bransjer
+_FARGE_BRANSJE = [
+    "#0067C5", "#06893A", "#C77300", "#7B3F9E",
+    "#D62728", "#8C564B", "#E377C2", "#17BECF",
+    "#BCBD22", "#7F7F7F", "#1F77B4", "#FF7F0E",
+    "#2CA02C", "#9467BD",
+]
+
+_STORRELSE_ORDEN = ["Mikro\n(<10)", "Liten\n(10–49)", "Medium\n(50–249)", "Stor\n(≥250)"]
+_STORRELSE_MAP = {
+    "Mikro": "Mikro\n(<10)",
+    "Liten": "Liten\n(10–49)",
+    "Medium": "Medium\n(50–249)",
+    "Stor": "Stor\n(≥250)",
+}
+_STORRELSE_FARGER = [FARGE_OPPMOTTE, FARGE_JOBB, FARGE_ESTIMAT, "#7B3F9E"]
+
+
+def fig_bransje(df_ag: pd.DataFrame) -> go.Figure:
+    """
+    Horisontal søylediagram: antall arbeidsgiverbesøk per normalisert bransje.
+
+    Sortert høyest antall øverst. Viser bare rader med kjent bransje.
+    Dekning (n med bransje / n totalt) vises i tittelen.
+    """
+    n_total = len(df_ag)
+    med_bransje = df_ag[df_ag["bransje"].notna()].copy()
+    n_med = len(med_bransje)
+
+    grp = (
+        med_bransje.groupby("bransje")
+        .size()
+        .reset_index(name="antall")
+        .sort_values("antall", ascending=True)  # ascending → høyest øverst i horisontal bar
+    )
+
+    farger = [
+        _FARGE_BRANSJE[i % len(_FARGE_BRANSJE)]
+        for i in range(len(grp))
+    ]
+
+    fig = go.Figure(go.Bar(
+        x=grp["antall"].tolist(),
+        y=grp["bransje"].tolist(),
+        orientation="h",
+        marker_color=farger,
+        text=grp["antall"].tolist(),
+        textposition="outside",
+        hovertemplate="%{y}: %{x} arbeidsgiverbesøk<extra></extra>",
+    ))
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=f"Bransjefordeling blant arbeidsgivere (n={n_med} av {n_total} med kjent bransje)",
+        xaxis_title="Antall arbeidsgiverbesøk",
+        yaxis_title=None,
+        margin=dict(t=70, b=50, l=210, r=60),
+        height=max(400, len(grp) * 32 + 100),
+    )
+    return fig
+
+
+def fig_bedriftsstorrelse(df_ag: pd.DataFrame) -> go.Figure:
+    """
+    Søylediagram: antall arbeidsgivere per EU SME-størrelsesbøtte.
+
+    Mikro (<10) / Liten (10–49) / Medium (50–249) / Stor (≥250).
+    Dekning (n med antall_ansatte / n totalt) vises i tittelen.
+    """
+    n_total = len(df_ag)
+    med_storrelse = df_ag[df_ag["storrelse"].notna()].copy()
+    n_med = len(med_storrelse)
+
+    med_storrelse = med_storrelse.copy()
+    med_storrelse["storrelse_label"] = med_storrelse["storrelse"].map(_STORRELSE_MAP)
+
+    grp = (
+        med_storrelse.groupby("storrelse_label")
+        .size()
+        .reindex(_STORRELSE_ORDEN, fill_value=0)
+        .reset_index()
+    )
+    grp.columns = ["kategori", "antall"]
+
+    fig = go.Figure(go.Bar(
+        x=grp["kategori"].tolist(),
+        y=grp["antall"].tolist(),
+        marker_color=_STORRELSE_FARGER,
+        text=grp["antall"].tolist(),
+        textposition="outside",
+        hovertemplate=(
+            "%{x}<br>"
+            "Antall arbeidsgivere: %{y}<extra></extra>"
+        ),
+    ))
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=(
+            f"Bedriftsstørrelse (EU SME-standard) — "
+            f"n={n_med} av {n_total} med kjent antall ansatte"
+        ),
+        xaxis_title="Størrelsesbøtte",
+        yaxis_title="Antall arbeidsgivere",
+        showlegend=False,
+        margin=_MARGIN,
+        yaxis_range=[0, grp["antall"].max() * 1.15],
+    )
+    return fig
+
+
+def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
+    """
+    Søylediagram: estimert antall som får jobb med 95 % bootstrap-konfidensintervall.
+
+    Historiske år: grønne søyler.
+    Delvise år (faktisk + gjenstående estimat): stablet søyle med CI-whisker.
+    Fremtidige år: oransje stripete søyler med error bars (95 % CI).
+    Bootstrap-båndet reflekterer variasjon i fatt_jobb på tvers av enkelt-WorkOps.
+    """
+    historisk = bootstrap_df[bootstrap_df["kilde"] == "historisk"]
+    delvis = bootstrap_df[bootstrap_df["kilde"] == "delvis"]
+    fremskrivning = bootstrap_df[bootstrap_df["kilde"] == "estimat"]
+
+    fig = go.Figure()
+
+    # Rene historiske år — grønne søyler
+    if not historisk.empty:
+        fig.add_trace(go.Bar(
+            x=historisk["aar"].astype(str).tolist(),
+            y=historisk["faktisk_jobb"].tolist(),
+            name="Faktisk",
+            marker_color=FARGE_JOBB,
+            hovertemplate="År %{x}<br>Fikk jobb: %{y:.0f}<extra></extra>",
+        ))
+
+    # Delvise år — stablet søyle: faktisk bunn + estimert topp
+    if not delvis.empty:
+        # Faktisk del (grønn solid) — uten legend-oppføring (samme farge som "Faktisk")
+        fig.add_trace(go.Bar(
+            x=delvis["aar"].astype(str).tolist(),
+            y=delvis["faktisk_jobb"].tolist(),
+            name="Faktisk (delvis år)",
+            marker_color=FARGE_JOBB,
+            showlegend=False,
+            hovertemplate=(
+                "År %{x}<br>"
+                "Gjennomført: %{y:.0f}<extra></extra>"
+            ),
+        ))
+        # Gjenstående estimat (stiplet oransje topp)
+        fig.add_trace(go.Bar(
+            x=delvis["aar"].astype(str).tolist(),
+            y=delvis["est_rest"].tolist(),
+            name="Gjenstående (estimat)",
+            marker_color=FARGE_ESTIMAT,
+            marker_pattern_shape="/",
+            opacity=0.7,
+            error_y=dict(
+                type="data",
+                array=[(hi - fakt - rest) for hi, fakt, rest in zip(
+                    delvis["ci_hi"].tolist(),
+                    delvis["faktisk_jobb"].tolist(),
+                    delvis["est_rest"].tolist(),
+                )],
+                arrayminus=[(fakt + rest - lo) for lo, fakt, rest in zip(
+                    delvis["ci_lo"].tolist(),
+                    delvis["faktisk_jobb"].tolist(),
+                    delvis["est_rest"].tolist(),
+                )],
+                visible=True,
+                color="#555555",
+            ),
+            hovertemplate=(
+                "År %{x}<br>"
+                "Gjenstående estimat: %{y:.0f}<br>"
+                "95 % CI: [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<extra></extra>"
+            ),
+            customdata=list(zip(
+                delvis["ci_lo"].tolist(),
+                delvis["ci_hi"].tolist(),
+            )),
+        ))
+
+    # Fremtidige år — søyler med error bars (CI)
+    if not fremskrivning.empty:
+        x_est = fremskrivning["aar"].astype(str).tolist()
+        ci_lo = fremskrivning["ci_lo"].tolist()
+        ci_hi = fremskrivning["ci_hi"].tolist()
+        est_jobb = fremskrivning["est_jobb"].tolist()
+
+        fig.add_trace(go.Bar(
+            x=x_est,
+            y=est_jobb,
+            name="Estimat",
+            marker_color=FARGE_ESTIMAT,
+            marker_pattern_shape="/",
+            opacity=0.7,
+            error_y=dict(
+                type="data",
+                array=[hi - est for hi, est in zip(ci_hi, est_jobb)],
+                arrayminus=[est - lo for lo, est in zip(ci_lo, est_jobb)],
+                visible=True,
+                color="#555555",
+            ),
+            hovertemplate=(
+                "År %{x} (estimat)<br>"
+                "Sentralestimat: %{y:.0f}<br>"
+                "95 % CI: [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<extra></extra>"
+            ),
+            customdata=list(zip(ci_lo, ci_hi)),
+        ))
+
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Estimert antall som får jobb med 95 % konfidensintervall (bootstrap)",
+        xaxis=dict(title="År", type="category"),
+        yaxis_title="Antall personer",
+        barmode="stack",
+        legend=_LEGEND_BUNN,
+        margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_fordeling_jobb(df: pd.DataFrame) -> go.Figure:
+    """
+    Fordelingsplott: antall WorkOp per antall som fikk jobb.
+
+    Viser alle heltallsverdier mellom min og maks på x-aksen (0-forekomster
+    vises som tomme søyler). Median og snitt markeres med vertikale linjer.
+    """
+    aktive = df[df["har_data"]].copy()
+    jobb = aktive["fatt_jobb"].dropna()
+
+    median_val = jobb.median()
+    snitt_val = jobb.mean()
+
+    # Full x-akse fra min til maks, fyll inn 0 for manglende verdier
+    alle_x = list(range(int(jobb.min()), int(jobb.max()) + 1))
+    teller = jobb.value_counts().reindex(alle_x, fill_value=0)
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=alle_x,
+        y=teller.values.tolist(),
+        name="Antall WorkOp",
+        marker_color=FARGE_JOBB,
+        hovertemplate="%{x} fikk jobb: %{y} WorkOp<extra></extra>",
+    ))
+
+    # Medianstrek
+    fig.add_vline(
+        x=median_val,
+        line=dict(color="#C77300", width=2, dash="dash"),
+        annotation_text=f"Median: {median_val:.0f}",
+        annotation_position="top right",
+        annotation_font=dict(color="#C77300"),
+    )
+
+    # Snittstrrek (bare hvis merkbart forskjellig fra median)
+    if abs(snitt_val - median_val) >= 0.5:
+        fig.add_vline(
+            x=snitt_val,
+            line=dict(color="#888888", width=1.5, dash="dot"),
+            annotation_text=f"Snitt: {snitt_val:.1f}",
+            annotation_position="top left",
+            annotation_font=dict(color="#888888"),
+        )
+
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Fordeling av antall som fikk jobb per WorkOp",
+        xaxis=dict(title="Antall som fikk jobb", dtick=1),
+        yaxis=dict(title="Antall WorkOp", dtick=1),
+        showlegend=False,
+        margin=_MARGIN,
+    )
+    return fig

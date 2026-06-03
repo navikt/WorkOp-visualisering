@@ -1,0 +1,28 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "WorkOp — resultater og fremskrivning"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Sammendrag
+      - href: 01_data.qmd
+        text: Datagrunnlag
+      - href: 02_resultater.qmd
+        text: Resultater
+      - href: 03_fremskrivning.qmd
+        text: Fremskrivning
+      - href: 04_arbeidsgivere.qmd
+        text: Arbeidsgivere
+
+format:
+  html:
+    toc: true
+    fig-width: 10
+    fig-height: 6
+    embed-resources: true
+
+execute:
+  freeze: false

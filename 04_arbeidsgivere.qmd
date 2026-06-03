@@ -1,0 +1,69 @@
+---
+title: "Arbeidsgivere"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import warnings
+warnings.filterwarnings("ignore")
+
+from src.workop.extract import extract_arbeidsgivere
+from src.workop.plots import fig_bransje, fig_bedriftsstorrelse
+
+DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
+df_ag, ag_missing = extract_arbeidsgivere(DATAFIL)
+```
+
+Siden viser hvilke bransjer og bedriftsstørrelser som er representert blant
+arbeidsgiverne på WorkOp-arrangementene. Data er aggregert — ingen enkeltbedrifter
+vises i oversiktene.
+
+```{python}
+#| echo: false
+n_workop = df_ag["workop_nr"].nunique()
+n_ag = len(df_ag)
+n_anonym = df_ag["er_anonym"].sum()
+print(
+    f"Datagrunnlag: {n_ag} arbeidsgiverbesøk fra {n_workop} WorkOps "
+    f"({n_anonym} anonymiserte poster ekskludert fra bransjeplot)."
+)
+```
+
+## Bransjefordeling
+
+Antall ganger arbeidsgivere fra hver bransje har deltatt på WorkOp.
+En arbeidsgiver teller én gang per WorkOp de deltar på.
+
+```{python}
+#| echo: false
+fig_bransje(df_ag).show()
+```
+
+## Bedriftsstørrelse
+
+Fordeling etter EU SMEs standard størrelseskategorier, basert på antall ansatte
+oppgitt i arrangementsdataen.
+
+| Kategori | Antall ansatte |
+|---|---|
+| Mikro | < 10 |
+| Liten | 10–49 |
+| Medium | 50–249 |
+| Stor | ≥ 250 |
+
+```{python}
+#| echo: false
+fig_bedriftsstorrelse(df_ag).show()
+```
+
+## WorkOps uten arbeidsgiverdata
+
+```{python}
+#| echo: false
+if ag_missing:
+    import pandas as pd
+    pd.DataFrame({"Ark": ag_missing}).style.hide(axis="index")
+else:
+    print("Alle WorkOps har arbeidsgiverdata i rad 31.")
+```
