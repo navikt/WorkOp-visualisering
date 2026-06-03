@@ -4,31 +4,28 @@ Visualiseringer av WorkOp-programmet ved Nav. Datagrunnlaget er en Excel-fil med
 resultater fra individuelle arrangementer. Nettsiden bygges med Quarto og oppdateres
 ved å kjøre `just render` etter at ny Excel-fil er lagt inn.
 
-## Kom i gang
+## Kjøring
+
+For oppdaterte tall legg en kopi av excelfila i `data/`-mappa, og kjør deretter:
 
 ```bash
-# Installer avhengigheter (krever uv og just)
-just install
-
-# Forhåndsvis nettsiden lokalt
-just preview
-
-# Bygg statisk nettside til _site/
-just render
-```
-
-## Oppdater med nye data
-
-1. Erstatt `data/Resultat og måling 1-32 Workop.xlsx` med ny fil
-2. Kjør `just render`
-
-Sjekk at datauttrekket ser riktig ut før du bygger:
-
-```bash
+# viser en oversikt over datauthenting fra excelfila
 just extract
+
+# bygg statisk nettside
+just render
+
+# last opp oppdatert versjon til datamarkedsplassen
+just oppdater-quarto _site
 ```
 
-## Juster estimeringsparametere
+
+## Eksperimentering i en sandkasse
+
+Repoet har også en sandkasse for utforsking av data og visualiseringer i `notebooks/eksperimentering.py`.
+Krever VScode extension Jupytext for å synce mellom .py og .ipynb.
+
+## Estimeringsparametere
 
 Fremskrivningen bruker parametere i `src/workop/transform.py`:
 
@@ -53,14 +50,4 @@ Fremskrivningen bruker parametere i `src/workop/transform.py`:
 ├── notebooks/
 │   └── eksperimentering.py  # Jupytext-sandkasse for utforsking
 └── justfile             # Vanlige kommandoer
-```
-
-## Sandkasse
-
-`notebooks/eksperimentering.py` er en Jupytext-fil for fri utforsking.
-Synk mellom `.py` og `.ipynb` med:
-
-```bash
-just sync
-# Åpne deretter notebooks/eksperimentering.ipynb i VS Code eller JupyterLab
 ```
