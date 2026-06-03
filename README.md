@@ -1,5 +1,7 @@
 # WorkOp — resultater og fremskrivning
 
+Se datafortellingen på datamarkedsplassen: https://data.ansatt.nav.no/quarto/a191ebb5-1c8d-4d42-ac01-6740c3425c86/01_data.html
+
 Visualiseringer av WorkOp-programmet ved Nav. Datagrunnlaget er en Excel-fil med
 resultater fra individuelle arrangementer. Nettsiden bygges med Quarto og oppdateres
 ved å kjøre `just render` etter at ny Excel-fil er lagt inn.
@@ -41,13 +43,13 @@ Fremskrivningen bruker parametere i `src/workop/transform.py`:
 ├── 02_resultater.qmd    # Resultater og innsatsgrupper
 ├── 03_fremskrivning.qmd # Fremskrivning med usikkerhetsestimat
 ├── 04_arbeidsgivere.qmd # Bransje og bedriftsstørrelse
-├── index.qmd            # Sammendragsside
+├── index.qmd            # Landingsside for datafortellingen
 ├── src/workop/
 │   ├── extract.py       # Les og normaliser data fra Excel
 │   ├── transform.py     # Beregninger og fremskrivning
 │   └── plots.py         # Alle Plotly-figurer
-├── data/                # Excel-kildefil (ikke versjonert)
+├── data/                # Excel-kildefil (ikke på GitHub)
 ├── notebooks/
-│   └── eksperimentering.py  # Jupytext-sandkasse for utforsking
+│   └── eksperimentering.py  # Jupytext-sandkasse for utforsking/eksperimentering
 └── justfile             # Vanlige kommandoer
 ```
