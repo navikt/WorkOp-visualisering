@@ -64,7 +64,7 @@ fig_fordeling_jobb(df).show()
 ## Innsatsgrupper (som fikk jobb)
 
 Fordeling av innsatsgrupper blant de som fikk jobb. Merk at ikke alle ark
-har fullstendig registrering av innsatsgrupper — summer kan avvike fra totalen.
+har fullstendig registrering av innsatsgrupper — så summen avviker noe fra totalen.
 
 ```{python}
 #| echo: false

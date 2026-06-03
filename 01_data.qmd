@@ -16,6 +16,10 @@ df_raw, missing = extract_all(DATAFIL)
 df = legg_til_kalkulerte_kolonner(df_raw)
 ```
 
+Per juni 2026 er dataene samlet inn i et massivt excel-ark hvor hver WorkOp har sitt eget ark. 
+Dataene er delvis strukturerte.
+Nedenfor er en oppsummering av datagrunnlaget.
+
 ## Alle WorkOp-er
 
 ```{python}
@@ -51,17 +55,18 @@ display(visning[kolonner].set_index("Nr.").style
 
 ## Ark uten data
 
-Følgende ark er registrert som kommende WorkOp-er (placeholder) eller mangler
-resultattall:
+Følgende excel-ark er registrert som kommende WorkOp-er (placeholder) eller mangler
+hovedresultattall:
 
 ```{python}
 #| echo: false
 if missing:
-    pd.DataFrame({"Arknavn": missing}).style.hide(axis="index")
+    pd.DataFrame({"Arknavn": missing})
 else:
     print("Ingen ark uten data.")
 ```
 
+Det er forøvig ikke all data som er registrert likt for hver WorkOp, så noe avvik kan forekomme.
 ## Datakvalitet
 
 ```{python}

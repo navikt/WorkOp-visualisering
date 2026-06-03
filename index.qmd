@@ -2,6 +2,8 @@
 title: "WorkOp — sammendrag"
 ---
 
+**Kun for internt bruk i Nav direktoratet!**
+
 ```{python}
 #| echo: false
 #| output: false
@@ -60,6 +62,12 @@ HTML(html)
 #| echo: false
 from src.workop.plots import fig_deltakere_jobb, fig_deltakere_jobb_tid
 fig_deltakere_jobb(df).show()
+```
+
+## Resultater per WorkOp aggregert per kvartal
+
+```{python}
+#| echo: false
 fig_deltakere_jobb_tid(df).show()
 ```
 
@@ -67,7 +75,7 @@ fig_deltakere_jobb_tid(df).show()
 
 WorkOp er et konsept der Nav-veiledere og arbeidsgivere møtes med arbeidsledige
 i en strukturert setting for å koble kandidater direkte til ledige stillinger.
-Hvert arrangement samler typisk 15–35 deltakere og 5–10 arbeidsgivere.
+Hvert arrangement samler i utgangspunktet 25 deltakere og 5 arbeidsgivere, men det er noe variasjon.
 
-Denne rapporten oppdateres automatisk når nye data er tilgjengelig.
+Denne rapporten kan oppdateres uten manuelt arbeid når nye data er tilgjengelig.
 Sist oppdatert: `{python} datetime.date.today().strftime('%d.%m.%Y')`

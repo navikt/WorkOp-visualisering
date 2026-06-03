@@ -22,10 +22,13 @@ snitt = snitt_fra_data(df)
 
 Fremskrivningen baserer seg på historiske snitt og antatt oppskalering av WorkOp
 til flere Nav-kontorer.
+Estimeringen tar forbehold om at skaleringen fortsetter og at fremtidige arrangementer er like effektive som historiske.
+Estimeringene har også en usikkerhetsanalyse basert på tallene, men ikke basert på eksterne faktorer som arbeidsmarkedet på ulike steder og tidspunkter.
 
 **Forutsetninger:**
 
-Fylkene lærer opp egne kontorer, og i løpet av 2026 blir alle 12 Nav-fylkene onboardet, som gir et stort hopp i antall WorkOp fra 2026 til 2027.
+Fylkene lærer opp egne kontorer, og i løpet av 2026 blir alle 12 Nav-fylkene onboardet.
+Fra 2027 gir alle 12 fylker opplæring, som gir et stort hopp i antall WorkOp fra 2026 til 2027.
 
 ```{python}
 #| echo: false
@@ -36,7 +39,7 @@ print(f"Snitt oppmøtte per WorkOp:   {snitt['snitt_oppmotte']:.1f} personer")
 print(f"Snitt andel som fikk jobb:   {snitt['snitt_andel_jobb']:.1%}")
 print(f"Antall WorkOp per kontor/år: {WORKOP_PER_KONTOR_PER_AAR}")
 print()
-print("Planlagt antall kontorer:")
+print("Planlagt minimum antall kontorer som skal kjøre WorkOp:")
 for aar, n in sorted(KONTORER_PLAN.items()):
     print(f"  {aar}: {n} kontorer")
 ```
