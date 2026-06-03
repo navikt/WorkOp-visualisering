@@ -55,18 +55,19 @@ display(visning[kolonner].set_index("Nr.").style
 
 ## Ark uten data
 
-Følgende excel-ark er registrert som kommende WorkOp-er (placeholder) eller mangler
-hovedresultattall:
+Følgende excel-ark er registrert som kommende WorkOp-er (placeholder) og mangler hovedtallet "Fikk jobb", og er derfor ikke med i visualiseringene:
 
 ```{python}
 #| echo: false
 if missing:
-    pd.DataFrame({"Arknavn": missing})
+    for m in missing:
+        print(f"  {m}")
 else:
     print("Ingen ark uten data.")
 ```
 
 Det er forøvig ikke all data som er registrert likt for hver WorkOp, så noe avvik kan forekomme.
+
 ## Datakvalitet
 
 ```{python}
@@ -85,5 +86,5 @@ if len(uten_dato) > 0:
 
 ::: {.callout-note}
 WorkOp-er uten parsbar dato vises likevel i tabellen og teller med i alle totaltall.
-De mangler bare presis plassering på tidslinja i figurene.
+De mangler bare presis plassering på tidslinja i figurene, men får et årstall basert på nummeret i rekkefølgen.
 :::

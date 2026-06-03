@@ -387,8 +387,14 @@ def extract_all(filepath: str | Path) -> tuple[pd.DataFrame, list[str]]:
     df = pd.DataFrame(rows)
     df = df.sort_values("workop_nr").reset_index(drop=True)
 
-    missing = df.loc[~df["har_data"], "raw_title"].fillna(
-        df.loc[~df["har_data"], "workop_nr"].astype(str).apply(lambda n: f"WorkOp {n}")
+    missing_rows = df.loc[~df["har_data"], ["workop_nr", "raw_title"]].copy()
+    base = missing_rows["raw_title"].fillna(
+        missing_rows["workop_nr"].astype(int).astype(str).radd("WorkOp ")
+    )
+    missing = (
+        missing_rows["workop_nr"].astype(int).astype(str).radd("Ark ")
+        + " - "
+        + base.astype(str)
     ).tolist()
 
     df_with_data = df[df["har_data"]].copy()
