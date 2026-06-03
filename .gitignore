@@ -1,6 +1,15 @@
 data/
+
 .venv/
 .DS_Store
 **/*.ipynb
 .ruff_cache/
 __pycache__/
+
+_site/
+/.quarto/
+**/*.quarto_ipynb
+_extensions/
+
+# teamtoken for oppdatering av quarto
+.env.team-token

@@ -5,4 +5,8 @@ requires-python = ">=3.14"
 dependencies = [
     "openpyxl>=3.1.5",
     "plotly>=6.7.0",
+    "pandas>=2.2",
+    "dateparser>=1.2",
+    "jupyter>=1.1",
+    "jupytext>=1.16",
 ]
