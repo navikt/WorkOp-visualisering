@@ -31,3 +31,7 @@ oppdater-quarto dir:
     done
     curl -X PUT "${files[@]}" "https://data.nav.no/quarto/update/{{ quarto_id }}" \
         -H "Authorization: Bearer ${TEAM_TOKEN}"
+
+# Oppdaterer pakker med uv
+update:
+    uv lock --upgrade
