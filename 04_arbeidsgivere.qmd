@@ -59,13 +59,17 @@ oppgitt i arrangementsdataen.
 fig_bedriftsstorrelse(df_ag).show()
 ```
 
+Det er altså en blanding av store og små bedrifter som deltar på WorkOp.
+
+
 ## WorkOps uten arbeidsgiverdata
 
 ```{python}
 #| echo: false
 if ag_missing:
     import pandas as pd
-    pd.DataFrame({"Ark": ag_missing}).style.hide(axis="index")
+    print("Feil i innlasting av arbeidsgiverdata for følgende WorkOps:")
+    print(pd.DataFrame({"Ark": ag_missing}))
 else:
     print("Alle WorkOps har arbeidsgiverdata i rad 31.")
 ```
