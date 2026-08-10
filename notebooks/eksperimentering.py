@@ -64,33 +64,21 @@ aktive[["workop_nr", "oppmotte", "fatt_jobb", "andel_jobb", "kumulativ_fatt_jobb
 
 # %%
 from src.workop.plots import (
-    fig_deltakere_jobb,
     fig_deltakere_jobb_tid,
     fig_kumulativ,
-    fig_andel_jobb,
-    fig_estimat,
-    fig_innsatsgrupper,
 )
 
-fig_deltakere_jobb(df).show()
-
-# %%
 fig_deltakere_jobb_tid(df).show()
 
 # %%
 fig_kumulativ(df).show()
 
-# %%
-fig_andel_jobb(df).show()
-
-# %%
-fig_innsatsgrupper(df).show()
-
 # %% [markdown]
 # ## Steg 4: Estimeringsmodell
 
 # %%
-from src.workop.transform import estimat, KONTORER_PLAN, WORKOP_PER_KONTOR_PER_AAR
+from src.workop.transform import estimat, bootstrap_usikkerhet, KONTORER_PLAN, WORKOP_PER_KONTOR_PER_AAR
+from src.workop.plots import fig_jobb_usikkerhet
 
 # Standard estimat
 est = estimat(df)
@@ -98,17 +86,8 @@ print("Standard estimat:")
 print(est[["aar", "antall_kontorer", "antall_workop", "est_oppmotte", "est_fatt_jobb", "kilde"]].to_string())
 
 # %%
-# Alternativt scenario: færre kontorer per år
-alternativt_plan = {2026: 20, 2027: 40, 2028: 60, 2029: 80}
-est_alt = estimat(df, kontorer_plan=alternativt_plan, workop_per_kontor=2)
-print("Alternativt (lavt) scenario:")
-print(est_alt[["aar", "antall_kontorer", "antall_workop", "est_oppmotte", "est_fatt_jobb", "kilde"]].to_string())
-
-# %%
-fig_estimat(df, est).show()
-
-# %%
-fig_estimat(df, est_alt).show()
+boot = bootstrap_usikkerhet(df)
+fig_jobb_usikkerhet(boot).show()
 
 # %% [markdown]
 # ## Steg 5: Validering

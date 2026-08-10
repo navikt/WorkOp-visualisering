@@ -15,22 +15,15 @@ from src.workop.plots import fig_bransje, fig_bedriftsstorrelse
 df_ag, ag_missing = extract_arbeidsgivere()
 ```
 
-Siden viser hvilke bransjer og bedriftsstørrelser som er representert blant
-arbeidsgiverne på WorkOp-arrangementene. Data er aggregert — ingen enkeltbedrifter
-vises i oversiktene.
+Oversikt over bransjer og bedriftsstørrelser blant arbeidsgiverne som har deltatt
+på WorkOp. Data er aggregert — ingen enkeltbedrifter vises.
 
 ```{python}
 #| echo: false
 n_workop = df_ag["workop_nr"].nunique()
 n_ag = len(df_ag)
-n_anonym = df_ag["er_anonym"].sum()
-print(
-    f"Datagrunnlag: {n_ag} arbeidsgiverbesøk fra {n_workop} WorkOps "
-    f"({n_anonym} anonymiserte poster ekskludert fra bransjeplot)."
-)
+print(f"Datagrunnlag: {n_ag} arbeidsgiverbesøk fra {n_workop} WorkOps.")
 ```
-
-Anonym arbeidsgiver er bare at det i excelarket står "Arbeidsgiver 1" eller liknende.
 
 ## Bransjefordeling
 
@@ -44,8 +37,7 @@ fig_bransje(df_ag).show()
 
 ## Bedriftsstørrelse
 
-Fordeling etter EU SMEs standard størrelseskategorier, basert på antall ansatte
-oppgitt i arrangementsdataen.
+Fordeling etter EU SMEs standard størrelseskategorier.
 
 | Kategori | Antall ansatte |
 |---|---|
@@ -59,10 +51,7 @@ oppgitt i arrangementsdataen.
 fig_bedriftsstorrelse(df_ag).show()
 ```
 
-Det er altså en blanding av store og små bedrifter som deltar på WorkOp.
-
-
-## WorkOps uten arbeidsgiverdata
+## Datakvalitet
 
 ```{python}
 #| echo: false

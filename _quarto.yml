@@ -7,14 +7,10 @@ website:
   navbar:
     left:
       - href: index.qmd
-        text: Sammendrag
-      - href: 01_data.qmd
-        text: Datagrunnlag
-      - href: 02_resultater.qmd
-        text: Resultater
-      - href: 03_fremskrivning.qmd
+        text: Oversikt
+      - href: fremskrivning.qmd
         text: Fremskrivning
-      - href: 04_arbeidsgivere.qmd
+      - href: arbeidsgivere.qmd
         text: Arbeidsgivere
 
 format:

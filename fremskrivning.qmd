@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, estimat, snitt_fra_data, bootstrap_usikkerhet
-from src.workop.plots import fig_estimat, fig_jobb_usikkerhet
+from src.workop.plots import fig_jobb_usikkerhet
 
 
 df_raw, _ = extract_all()
@@ -22,8 +22,10 @@ snitt = snitt_fra_data(df)
 
 Fremskrivningen baserer seg på historiske snitt og antatt oppskalering av WorkOp
 til flere Nav-kontorer.
-Estimeringen tar forbehold om at skaleringen fortsetter og at fremtidige arrangementer er like effektive som historiske.
-Estimeringene har også en usikkerhetsanalyse basert på tallene, men ikke basert på eksterne faktorer som arbeidsmarkedet på ulike steder og tidspunkter.
+
+Estimeringen forutsetter at skaleringen fortsetter og at fremtidige arrangementer
+er like effektive som historiske. Usikkerhetsanalysen fanger variasjon mellom
+arrangementer, men ikke eksterne faktorer som arbeidsmarkedet.
 
 **Forutsetninger:**
 
@@ -49,15 +51,17 @@ Juster parameterne i `src/workop/transform.py` for å teste alternative scenarie
 Endre `KONTORER_PLAN` og `WORKOP_PER_KONTOR_PER_AAR`.
 :::
 
-## Estimert utvikling
+## Estimat med konfidensintervall
 
-Historiske år vises som faktiske tall. Fremtidige år (stripet) er estimater
-basert på forutsetningene over.
+Båndet viser 95 % konfidensintervall beregnet med bootstrap: for hvert fremtidsår
+trekkes `k` verdier (én per estimert WorkOp) fra historiske observasjoner og summeres.
+Dette gjentas 5 000 ganger. Båndet reflekterer reell variasjon mellom arrangementene
+— ikke bare usikkerhet i snittet.
 
 ```{python}
 #| echo: false
-est = estimat(df)
-fig_estimat(df, est).show()
+boot = bootstrap_usikkerhet(df)
+fig_jobb_usikkerhet(boot).show()
 ```
 
 ## Estimattabell
@@ -66,6 +70,7 @@ fig_estimat(df, est).show()
 #| echo: false
 import pandas as pd
 
+est = estimat(df)
 visning = est.copy()
 visning["Kilde"] = visning["kilde"].map({"historisk": "✅ Faktisk", "estimat": "📊 Estimat"})
 visning["Kontorer"] = visning["antall_kontorer"].fillna("–").apply(
@@ -88,7 +93,7 @@ display(visning[["År", "Kilde", "Kontorer", "Antall WorkOp",
 )
 ```
 
-## Usikkerhet
+## Forbehold
 
 Fremskrivningen er en lineær ekstrapolasjon og tar ikke hensyn til:
 
@@ -98,16 +103,3 @@ Fremskrivningen er en lineær ekstrapolasjon og tar ikke hensyn til:
 - Opplæringskurve for nye kontorer
 
 Bruk tallene som størrelsesorden, ikke presise prognoser.
-
-## Estimat med konfidensintervall
-
-Båndet viser 95 % konfidensintervall beregnet med bootstrap: for hvert fremtidsår
-trekkes `k` verdier (én per estimert WorkOp) fra historiske observasjoner og summeres.
-Dette gjentas 5 000 ganger. Båndet reflekterer reell variasjon mellom arrangementene
-— ikke bare usikkerhet i snittet.
-
-```{python}
-#| echo: false
-boot = bootstrap_usikkerhet(df)
-fig_jobb_usikkerhet(boot).show()
-```

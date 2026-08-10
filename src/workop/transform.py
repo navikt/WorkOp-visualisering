@@ -36,7 +36,6 @@ def legg_til_kalkulerte_kolonner(df: pd.DataFrame) -> pd.DataFrame:
 
     Nye kolonner:
       - andel_jobb      : fatt_jobb / oppmotte (0.0–1.0)
-      - kostnad_per_jobb: kostnader / fatt_jobb (kr)
       - kumulativ_oppmotte: løpende sum oppmøtte (sortert på dato/workop_nr)
       - kumulativ_fatt_jobb: løpende sum fått jobb
     """
@@ -45,15 +44,8 @@ def legg_til_kalkulerte_kolonner(df: pd.DataFrame) -> pd.DataFrame:
     # Andel som fikk jobb
     df["andel_jobb"] = df["fatt_jobb"] / df["oppmotte"]
 
-    # Kostnad per person som fikk jobb
-    df["kostnad_per_jobb"] = df.apply(
-        lambda r: r["kostnader"] / r["fatt_jobb"]
-        if (r["kostnader"] and r["fatt_jobb"])
-        else None,
-        axis=1,
-    )
-
-    # Kumulativ beregning — sortert på workop_nr (som er kronologisk innen datasettet)
+    # Kumulativ beregning — sortert på dato for korrekt kronologisk rekkefølge
+    df = df.sort_values("dato", na_position="last").reset_index(drop=True)
     aktive = df["har_data"]
     df.loc[aktive, "kumulativ_oppmotte"] = df.loc[aktive, "oppmotte"].cumsum()
     df.loc[aktive, "kumulativ_fatt_jobb"] = df.loc[aktive, "fatt_jobb"].cumsum()
