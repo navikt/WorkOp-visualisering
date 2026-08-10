@@ -11,8 +11,8 @@ warnings.filterwarnings("ignore")
 from src.workop.extract import extract_arbeidsgivere
 from src.workop.plots import fig_bransje, fig_bedriftsstorrelse
 
-DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
-df_ag, ag_missing = extract_arbeidsgivere(DATAFIL)
+
+df_ag, ag_missing = extract_arbeidsgivere()
 ```
 
 Siden viser hvilke bransjer og bedriftsstørrelser som er representert blant
@@ -67,9 +67,9 @@ Det er altså en blanding av store og små bedrifter som deltar på WorkOp.
 ```{python}
 #| echo: false
 if ag_missing:
-    import pandas as pd
-    print("Feil i innlasting av arbeidsgiverdata for følgende WorkOps:")
-    print(pd.DataFrame({"Ark": ag_missing}))
+    print("Advarsler om arbeidsgiverdata:")
+    for w in ag_missing:
+        print(f"  ⚠️  {w}")
 else:
-    print("Alle WorkOps har arbeidsgiverdata i rad 31.")
+    print("Alle WorkOps har arbeidsgiverdata.")
 ```

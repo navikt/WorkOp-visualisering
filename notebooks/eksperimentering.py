@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # WorkOp — eksperimentering og utforskning av dataene i excel-fila
+# # WorkOp — eksperimentering og utforskning
 #
 # Kjør med: `just sync` for å synke til/fra .ipynb
 # Eller åpne direkte i VS Code / JupyterLab.
@@ -27,20 +27,20 @@ import sys
 sys.path.insert(0, "..")   # slik at 'src.workop' finnes når notebook kjøres fra notebooks/
 
 # %% [markdown]
-# ## Steg 1: Les data fra Excel
+# ## Steg 1: Les data fra Forms CSV
 
 # %%
 from src.workop.extract import extract_all
 
-DATAFIL = "../data/Resultat og måling 1-32 Workop.xlsx"
-df_raw, missing = extract_all(DATAFIL)
+df_raw, data_warnings = extract_all()
 
 print(f"WorkOp-er lest: {len(df_raw)}")
 print(f"Med data: {df_raw['har_data'].sum()}")
-print(f"Uten data (placeholder): {missing}")
+if data_warnings:
+    print(f"Advarsler: {data_warnings}")
 
 # %%
-df_raw[["workop_nr", "dato", "oppmotte", "fatt_jobb", "raw_title"]].head(10)
+df_raw[["workop_nr", "dato", "nav_kontor", "oppmotte", "fatt_jobb"]].head(10)
 
 # %% [markdown]
 # ## Steg 2: Beregn nøkkeltall
@@ -111,14 +111,12 @@ fig_estimat(df, est).show()
 fig_estimat(df, est_alt).show()
 
 # %% [markdown]
-# ## Steg 5: Validering mot Excel-sammenstilling
+# ## Steg 5: Validering
 #
-# Sanity check kjøres automatisk i `extract_all()`.
-# Her kan du dobbeltsjekke manuelt:
 
 # %%
 total_jobb = aktive["fatt_jobb"].sum()
 total_oppmotte = aktive["oppmotte"].sum()
-print(f"Totalt fikk jobb:   {total_jobb:.0f}  (Excel: 437)")
+print(f"Totalt fikk jobb:   {total_jobb:.0f}")
 print(f"Totalt oppmøtte:    {total_oppmotte:.0f}")
 print(f"Historisk jobbrate: {total_jobb/total_oppmotte:.1%}")

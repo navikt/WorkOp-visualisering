@@ -29,6 +29,9 @@ Ved behov: migrer til SharePoint-liste via Power Automate for bedre validering o
 | Oppmøtte — selve WorkOp | Tall ✱ |
 | Innkalt til intervju | Tall |
 
+**Få med noe om bistandsbehovet til deltakerne på workop**
+^ønsker å belyse at de som møter opp er i ungdomsgarantien (dvs trenger bistand og nedsatt arb.evne).
+
 **Arbeidsgivere** — 10 faste slots i samme skjema. Tomme slots ignoreres.
 Maks i data hittil er 10, snitt 5,4 — utvid ved behov.
 
@@ -56,6 +59,8 @@ Koordinator får IDen i kvitteringssiden og bruker den i Skjema 2.
 | — herav trenger veiledning | Tall |
 | — herav gode muligheter | Tall |
 
+**TODO: Få med: Hvor mange som fikk jobbtilbud, men takket nei**
+
 **Per arbeidsgiver** — auto-populert fra Skjema 1 via WorkOp-ID:
 
 | Felt | Type |
@@ -63,6 +68,8 @@ Koordinator får IDen i kvitteringssiden og bruker den i Skjema 2.
 | Bedriftsnavn | Forhåndsutfylt |
 | Aktuell for ordinær ansettelse | Tall |
 | Faktisk ansatt | Tall |
+
+#### TODO: Enten trenger vi å kunne oppdatere skjema 2 fordi noen får ny informasjon etter uke 5 og 6. Enten oppdatere skjema 2 eller et eventuelt skjema 3.
 
 ### Validering (i Forms eller ved innlesing)
 

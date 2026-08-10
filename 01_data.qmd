@@ -11,8 +11,8 @@ warnings.filterwarnings("ignore")
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner
 
-DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
-df_raw, missing = extract_all(DATAFIL)
+
+df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
 ```
 
@@ -55,15 +55,15 @@ display(visning[kolonner].set_index("Nr.").style
 
 ## Ark uten data
 
-Følgende excel-ark er registrert som kommende WorkOp-er (placeholder) og mangler hovedtallet "Fikk jobb", og er derfor ikke med i visualiseringene:
+Eventuelle datakvalitetsadvarsler:
 
 ```{python}
 #| echo: false
 if missing:
     for m in missing:
-        print(f"  {m}")
+        print(f"  ⚠️  {m}")
 else:
-    print("Ingen ark uten data.")
+    print("Ingen advarsler.")
 ```
 
 Det er forøvig ikke all data som er registrert likt for hver WorkOp, så noe avvik kan forekomme.

@@ -14,8 +14,8 @@ import datetime
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, estimat, snitt_fra_data
 
-DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
-df_raw, missing = extract_all(DATAFIL)
+
+df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
 est = estimat(df)
 snitt = snitt_fra_data(df)

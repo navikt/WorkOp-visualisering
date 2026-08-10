@@ -1,52 +1,31 @@
 """
-Henter og normaliserer data fra WorkOp Excel-fila.
+Henter og normaliserer data fra WorkOp Forms CSV-filer.
 
 Bruk:
-    df, missing = extract_all("data/Resultat og måling 1-32 Workop.xlsx")
+    df, warnings = extract_all()
+    df_ag, ag_warnings = extract_arbeidsgivere()
 """
 
 from __future__ import annotations
 
-import mimetypes
-import re
 from datetime import datetime
 from pathlib import Path
 
-# --- macOS / Python 3.14 workaround -------------------------------------------
-# openpyxl importerer MimeTypes() ved import, som på macOS prøver å lese
-# /etc/apache2/mime.types og feiler med PermissionError.
-# Patch MimeTypes.read *før* openpyxl importeres.
-_real_mime_read = mimetypes.MimeTypes.read
+import pandas as pd
 
+# ---------------------------------------------------------------------------
+# Standardstier
+# ---------------------------------------------------------------------------
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+FORMS1_CSV = DATA_DIR / "Rett etter gjennomføring av WorkOp.csv"
+FORMS2_CSV = DATA_DIR / "Hvor mange fikk jobb etter WorkOp.csv"
 
-def _safe_mime_read(self, filename, strict=True):  # type: ignore[override]
-    try:
-        return _real_mime_read(self, filename, strict)
-    except (PermissionError, OSError):
-        pass
+# Grense for semantikk-skift: WO ≤ denne verdien bruker kol9 som total fått jobb
+# WO > denne verdien: total = kol9 + kol10
+SEMANTIKK_GRENSE = 46
 
-
-mimetypes.MimeTypes.read = _safe_mime_read  # type: ignore[method-assign]
-# ------------------------------------------------------------------------------
-
-import openpyxl  # noqa: E402  (must come after patch)
-import dateparser  # noqa: E402
-import pandas as pd  # noqa: E402
-from openpyxl.workbook.workbook import Workbook  # noqa: E402
-from openpyxl.worksheet.worksheet import Worksheet  # noqa: E402
-
-YEAR_SEPARATOR = "2026"
-WORKOP_PATTERN = re.compile(r"^WorkOp\s+(\d+)\s*$")
-
-# B1-verdier som er generiske plassholdere uten sted/dato-info
-_GENERIC_TITTEL = re.compile(r"^WorkOp\s*(tid/sted:?)?\s*$", re.IGNORECASE)
-
-# Arbeidsgiver-plassholdere ("Arbeidsgiver x", "Arbeidsgiver 1" o.l.)
-PLACEHOLDER_AG = re.compile(r"^[Aa]rbeidsgiver[\s\dxX!]*$")
-# Tall-only = feil i rad 31 (WorkOp 25/37-stil)
-_GARBAGE_AG = re.compile(r"^\d+$")
-# Bransje-verdier som er tall eller header-tekst
-_GARBAGE_BRANSJE = re.compile(r"^\d+$|^Yrkeskategorier:?$", re.IGNORECASE)
+# Antall arbeidsgiver-slots i Forms 2 branching
+AG_SLOTS = 7
 
 # Normalisering fritekst-bransje → standardisert kategori (nøkler er lowercase).
 # Oppdater når nye bransjetyper dukker opp.
@@ -164,264 +143,80 @@ BRANSJE_NORM: dict[str, str] = {
     "foliering": "Annet",
 }
 
-NORSK_MAANEDER: dict[str, int] = {
-    "jan": 1, "januar": 1,
-    "feb": 2, "februar": 2,
-    "mar": 3, "mars": 3,
-    "apr": 4, "april": 4,
-    "mai": 5,
-    "jun": 6, "juni": 6,
-    "jul": 7, "juli": 7,
-    "aug": 8, "august": 8,
-    "sep": 9, "sept": 9, "september": 9,
-    "okt": 10, "oktober": 10,
-    "nov": 11, "november": 11,
-    "des": 12, "desember": 12,
-}
-
-DATEPARSER_SETTINGS = {
-    "RETURN_AS_TIMEZONE_AWARE": False,
+# Forms-bransjer som trenger normalisering til BRANSJE_NORM-kategorier
+_FORMS_BRANSJE_MAP: dict[str, str] = {
+    "butikk": "Varehandel og butikk",
+    "resturant og servering": "Restaurant og servering",
+    "industri": "Industri og produksjon",
+    "kultur": "Annet",
 }
 
 
-def _load_workbook(filepath: str | Path) -> Workbook:
-    return openpyxl.load_workbook(str(filepath), data_only=True)
+# ---------------------------------------------------------------------------
+# Interne hjelpere
+# ---------------------------------------------------------------------------
 
 
-def _get_active_sheet_names(wb: Workbook) -> list[str]:
-    """Returnerer WorkOp-ark mellom 'Start' og 'Slutt' (eksklusiv)."""
-    names = wb.sheetnames
-    try:
-        start = names.index("Start") + 1
-        stop = names.index("Slutt")
-    except ValueError:
-        start, stop = 0, len(names)
-    return [n for n in names[start:stop] if WORKOP_PATTERN.match(n)]
-
-
-def _year_separator_index(wb: Workbook) -> int:
-    """Indeks til '2026'-skillearket i sheetnames. Returnerer sys.maxsize om det mangler."""
-    try:
-        return wb.sheetnames.index(YEAR_SEPARATOR)
-    except ValueError:
-        return len(wb.sheetnames)
-
-
-def _infer_fallback_year(sheet_name: str, wb: Workbook) -> int:
-    sep_idx = _year_separator_index(wb)
-    sheet_idx = wb.sheetnames.index(sheet_name)
-    return 2026 if sheet_idx > sep_idx else 2025
-
-
-def _les_tittel(ws: Worksheet) -> str | None:
-    """
-    Leser tittelcellen robust. Noen ark har tittelen i feil kolonne:
-      - Standard: B1
-      - Kolonneskift til høyre (WorkOp 11, 31): C1
-      - Kolonneskift til venstre (WorkOp 19): A1
-      - Kolonneskift med D (WorkOp 21): D1
-      - Generisk B1 + sted/dato i D1 (WorkOp 14, 20, 36):
-        B1 = 'WorkOp tid/sted', D1 = 'Tønsberg 05.02.2026'
-        → kombinerer til 'WorkOp tid/sted Tønsberg 05.02.2026'
-
-    Rekkefølge: B1 (hvis ikke generisk), deretter D1, C1, A1.
-    Hvis B1 er generisk og D1 har innhold, kombineres de for full dato-parsbarhet.
-    """
-    b1_raw = ws.cell(1, 2).value
-    b1 = str(b1_raw).strip() if b1_raw else ""
-
-    if b1 and not _GENERIC_TITTEL.match(b1):
-        return b1
-
-    for col in [4, 3, 1]:  # D, C, A
-        val = ws.cell(1, col).value
-        if val and str(val).strip():
-            extra = str(val).strip()
-            return f"{b1} {extra}".strip() if b1 else extra
-
-    return b1 or None
-
-
-def _parse_date(raw: str | None, fallback_year: int) -> datetime | None:
-    """
-    Parser dato fra fritekst-strenger som 'WorkOp tid/sted 30.nov 2023'.
-
-    Strategi:
-      1. Finn eksplisitt 4-sifret år (2020–2029) eller kortår (23–26) i strengen.
-         Mangler år → bruk fallback_year.
-      2. Finn dag + måned via regex med norske månedsnavn.
-      3. Fallback: rent numerisk format dd.mm.yy.
-    """
-    if not raw:
-        return None
-
-    s = str(raw).lower()
-
-    # Finn eksplisitt 4-sifret år (2020–2029).
-    # Kortår (25, 26 osv.) håndteres kun i det numeriske dd.mm.yy-mønsteret nedenfor,
-    # for å unngå at dagnummer som "25" i "25.mars" feiltolkes som år.
-    m_year4 = re.search(r"\b(202[0-9])\b", s)
-    year = int(m_year4.group(1)) if m_year4 else fallback_year
-
-    # Finn dag + måned: "30.nov", "7mars", "15. mai", "13. november"
-    for mname in sorted(NORSK_MAANEDER, key=len, reverse=True):
-        mnum = NORSK_MAANEDER[mname]
-        # dag foran månedsnavn: "30.nov", "7mars", "25.feb", "13. november"
-        m = re.search(rf"\b(\d{{1,2}})\.?\s*{mname}", s)
-        if m:
-            try:
-                return datetime(year, mnum, int(m.group(1)))
-            except ValueError:
-                pass
-        # månedsnavn foran dag (sjeldent): "november 13"
-        m = re.search(rf"{mname}\.?\s*(\d{{1,2}})\b", s)
-        if m:
-            try:
-                return datetime(year, mnum, int(m.group(1)))
-            except ValueError:
-                pass
-
-    # Rent numerisk: dd.mm.yy[yy]
-    m = re.search(r"\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})\b", s)
-    if m:
-        day, month, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if yr < 100:
-            yr = 2000 + yr
-        try:
-            return datetime(yr, month, day)
-        except ValueError:
-            pass
-
-    return None
+def _normaliser_kolonnenavn(cols: list[str]) -> list[str]:
+    """Erstatter NBSP (\\xa0) med vanlig mellomrom i kolonnenavn."""
+    return [c.replace("\xa0", " ") for c in cols]
 
 
 def _safe_int(value: object) -> int | None:
-    """Konverterer til int. Håndterer None, float og strenger som '24 innkalt'."""
-    if value is None:
+    """Konverterer til int, eller None ved tomme/ugyldige verdier."""
+    if value is None or (isinstance(value, str) and not value.strip()):
         return None
-    if isinstance(value, (int, float)):
-        return int(value)
-    m = re.search(r"\d+", str(value))
-    return int(m.group()) if m else None
-
-
-def _safe_float(value: object) -> float | None:
-    """Konverterer til float. Håndterer norsk tusenskille ('25.000' og '25 000')."""
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    cleaned = re.sub(r"[\s.]", "", str(value)).replace(",", ".")
     try:
-        return float(cleaned)
+        return int(float(str(value).strip()))
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_forms_date(raw: str | None) -> datetime | None:
+    """Parser dato på formatet dd/mm/yyyy fra Forms CSV."""
+    if not raw or not raw.strip():
+        return None
+    raw = raw.strip()
+    try:
+        dt = datetime.strptime(raw, "%d/%m/%Y")
+        # Fang åpenbare typos (år utenfor rimelig intervall)
+        if dt.year < 2023 or dt.year > 2030:
+            return None
+        return dt
     except ValueError:
         return None
 
 
-def _extract_workop(ws: Worksheet, sheet_name: str, wb: Workbook) -> dict:
-    nr_match = WORKOP_PATTERN.match(sheet_name)
-    workop_nr = int(nr_match.group(1)) if nr_match else None
-
-    raw_title = _les_tittel(ws)
-    title_kort = re.sub(r"^WorkOp\s+|tid/sted\s*", "", raw_title or "").strip()
-    fallback_year = _infer_fallback_year(sheet_name, wb)
-    dato = _parse_date(raw_title, fallback_year)
-
-    fatt_jobb = _safe_int(ws["E14"].value)
-
-    return {
-        "workop_nr": workop_nr,
-        "raw_title": raw_title,
-        "title_kort": title_kort,
-        "dato": dato,
-        "fallback_year": fallback_year,
-        "oppmotte_forberedende": _safe_int(ws["E4"].value),
-        "oppmotte": _safe_int(ws["E5"].value),
-        "arbeidsgivere": _safe_int(ws["E9"].value),
-        "innkalt_intervju": _safe_int(ws["E13"].value),
-        "fatt_jobb": fatt_jobb,
-        "fatt_jobb_tiltak": _safe_int(ws["E15"].value),
-        "fatt_jobb_nedsatt": _safe_int(ws["F14"].value),
-        "fatt_jobb_veiledning": _safe_int(ws["G14"].value),
-        "fatt_jobb_gode": _safe_int(ws["H14"].value),
-        "dagsverk": _safe_float(ws["E7"].value),
-        "kostnader": _safe_float(ws["E8"].value),
-        "har_data": fatt_jobb is not None,
-    }
-
-
-def _validate_sum(df: pd.DataFrame, wb: Workbook) -> None:
-    """Sammenligner vår sum(fatt_jobb) mot 'Sammenstilling av data' C2."""
-    try:
-        ws_sum = wb["Sammenstilling av data"]
-        excel_total = _safe_int(ws_sum["C2"].value)
-        our_total = df["fatt_jobb"].sum()
-        if excel_total is not None and our_total != excel_total:
-            print(
-                f"⚠️  Sanity check: sum(fatt_jobb) = {our_total}, "
-                f"Excel-sammenstilling viser {excel_total} "
-                f"(diff = {our_total - excel_total})"
-            )
-        else:
-            print(f"✅ Sanity check OK: sum(fatt_jobb) = {our_total}")
-    except Exception:
-        pass
-
-
-def extract_all(filepath: str | Path) -> tuple[pd.DataFrame, list[str]]:
-    """
-    Leser alle aktive WorkOp-ark fra Excel-fila.
-
-    Returnerer:
-        df       — DataFrame med én rad per WorkOp
-        missing  — liste over arknavn uten E14-data
-    """
-    wb = _load_workbook(filepath)
-    sheet_names = _get_active_sheet_names(wb)
-
-    rows = []
-    for name in sheet_names:
-        ws = wb[name]
-        rows.append(_extract_workop(ws, name, wb))
-
-    df = pd.DataFrame(rows)
-    df = df.sort_values("workop_nr").reset_index(drop=True)
-
-    missing_rows = df.loc[~df["har_data"], ["workop_nr", "raw_title"]].copy()
-    base = missing_rows["raw_title"].fillna(
-        missing_rows["workop_nr"].astype(int).astype(str).radd("WorkOp ")
+def _read_forms_csv(filepath: str | Path) -> pd.DataFrame:
+    """Leser Forms CSV med semikolon-separator og BOM-håndtering."""
+    df = pd.read_csv(
+        filepath,
+        sep=";",
+        encoding="utf-8-sig",
+        dtype=str,
     )
-    missing = (
-        missing_rows["workop_nr"].astype(int).astype(str).radd("Ark ")
-        + " - "
-        + base.astype(str)
-    ).tolist()
+    df.columns = _normaliser_kolonnenavn(df.columns.tolist())
+    return df
 
-    df_with_data = df[df["har_data"]].copy()
-    _validate_sum(df_with_data, wb)
-
-    return df, missing
-
-
-# ---------------------------------------------------------------------------
-# Arbeidsgiverdata — rad 31–37, én kolonne per arbeidsgiver
-# ---------------------------------------------------------------------------
 
 def _normaliser_bransje(raw: str | None) -> str | None:
     """
-    Mapper råbransje til standardisert kategori via BRANSJE_NORM.
-    Returnerer 'Annet' for kjente men ikke-kartlagte verdier,
-    None for ugyldige/tomme verdier (tall, header-tekst, o.l.).
+    Mapper råbransje til standardisert kategori.
+    Sjekker først Forms-nedtrekksliste, deretter fritekst-mapping fra gammel Excel.
     """
-    if not raw:
+    if not raw or not raw.strip():
         return None
-    raw = raw.strip()
-    if _GARBAGE_BRANSJE.match(raw):
-        return None
-    # Lange kommalister er sannsynligvis feildata (flere firmaer på én rad)
-    if len(raw) > 80 and raw.count(",") >= 2:
-        return None
-    return BRANSJE_NORM.get(raw.lower(), "Annet")
+    raw_stripped = raw.strip()
+    # Forms-nedtrekksliste bruker kortere navn — sjekk først
+    forms_match = _FORMS_BRANSJE_MAP.get(raw_stripped.lower())
+    if forms_match:
+        return forms_match
+    # Sjekk om det allerede er en gyldig normalisert kategori
+    valid_categories = set(BRANSJE_NORM.values())
+    if raw_stripped in valid_categories:
+        return raw_stripped
+    # Fallback til fritekst-mapping
+    return BRANSJE_NORM.get(raw_stripped.lower(), "Annet")
 
 
 def _storrelse_kategori(antall_ansatte: int | None) -> str | None:
@@ -437,71 +232,227 @@ def _storrelse_kategori(antall_ansatte: int | None) -> str | None:
     return "Stor"
 
 
-def _extract_ag_kolonner(ws: Worksheet, workop_nr: int) -> list[dict]:
+# ---------------------------------------------------------------------------
+# Hovedekstraksjon — extract_all()
+# ---------------------------------------------------------------------------
+
+
+def extract_all(
+    forms1_path: str | Path | None = None,
+    forms2_path: str | Path | None = None,
+) -> tuple[pd.DataFrame, list[str]]:
     """
-    Leser arbeidsgiverdata fra rad 31–37, kolonne F (6) og utover.
+    Leser Forms 1 (gjennomføring) og Forms 2 (jobb-resultater) CSV-filer.
 
-    Stopper ved første tomme celle i rad 31. Hopper over kolonner der
-    rad 31 inneholder tall-only (WorkOp 25/37-stil feildata).
+    Returnerer:
+        df       — DataFrame med én rad per WorkOp (kompatibel med gammel API)
+        warnings — liste med datakvalitetsadvarsler
     """
-    result = []
-    for col in range(6, 32):  # F → AF (maks ~26 arbeidsgivere)
-        navn_raw = ws.cell(31, col).value
-        if not navn_raw or not str(navn_raw).strip():
-            break  # Stopp ved første tomme celle
+    f1_path = Path(forms1_path) if forms1_path else FORMS1_CSV
+    f2_path = Path(forms2_path) if forms2_path else FORMS2_CSV
 
-        navn = str(navn_raw).strip()
-        if _GARBAGE_AG.match(navn):
-            continue  # Tall-only — skip uten å bryte løkken
+    warns: list[str] = []
 
-        bransje_raw = ws.cell(32, col).value
-        bransje_str = str(bransje_raw).strip() if bransje_raw else None
+    # --- Les CSV-filer ---
+    f1 = _read_forms_csv(f1_path)
+    f2 = _read_forms_csv(f2_path)
 
-        antall_ansatte = _safe_int(ws.cell(33, col).value)
+    # Filtrer tomme rader (WorkOp-felt er tomt eller NaN)
+    f1 = f1[f1["WorkOp"].notna() & (f1["WorkOp"].str.strip() != "")].copy()
+    f2 = f2[f2["WorkOp"].notna() & (f2["WorkOp"].str.strip() != "")].copy()
 
-        result.append({
-            "workop_nr": workop_nr,
-            "ag_idx": len(result) + 1,
-            "navn": navn,
-            "er_anonym": bool(PLACEHOLDER_AG.match(navn)),
-            "bransje_raw": bransje_str,
-            "bransje": _normaliser_bransje(bransje_str),
-            "antall_ansatte": antall_ansatte,
-            "storrelse": _storrelse_kategori(antall_ansatte),
-            "rekrutteringsbehov": _safe_int(ws.cell(34, col).value),
-            "speedintervjuer": _safe_int(ws.cell(35, col).value),
-            "aktuell": _safe_int(ws.cell(36, col).value),
-            "ansatt": _safe_int(ws.cell(37, col).value),
-        })
-    return result
+    # Konverter WorkOp til int for joining
+    f1["workop_nr"] = f1["WorkOp"].str.strip().astype(int)
+    f2["workop_nr"] = f2["WorkOp"].str.strip().astype(int)
+
+    # --- Forms 1: oppmøte og innsatsbehov ---
+    f1_cols = f1.columns.tolist()
+    f1_data = pd.DataFrame({
+        "workop_nr": f1["workop_nr"],
+        "dato_raw": f1[f1_cols[6]],  # Dato for selve WorkOp
+        "nav_kontor": f1[f1_cols[7]],  # Hvilket Nav-kontor var arrangør?
+        "oppmotte_forberedende": f1[f1_cols[8]].map(_safe_int),
+        "oppmotte": f1[f1_cols[9]].map(_safe_int),
+        "innkalt_intervju": f1[f1_cols[10]].map(_safe_int),
+        "arbeidsgivere": f1[f1_cols[11]].map(_safe_int),
+        # Innsatsgrupper for oppmøtte
+        "ungdomsgaranti_oppmotte": f1[f1_cols[12]].map(_safe_int),
+        "innsats_gode_oppmotte": f1[f1_cols[13]].map(_safe_int),
+        "innsats_nedsatt_oppmotte": f1[f1_cols[14]].map(_safe_int),
+        "innsats_veiledning_oppmotte": f1[f1_cols[15]].map(_safe_int),
+    })
+
+    # --- Forms 2: jobb-resultater ---
+    f2_cols = f2.columns.tolist()
+    f2_data = pd.DataFrame({
+        "workop_nr": f2["workop_nr"],
+        "deltakere_f2": f2[f2_cols[8]].map(_safe_int),  # Deltakere (duplikat)
+        "jobb_hos_wo_ag": f2[f2_cols[9]].map(_safe_int),
+        "jobb_annen_ag": f2[f2_cols[10]].map(_safe_int),
+        "takket_nei": f2[f2_cols[11]].map(_safe_int),
+        "ansatt_med_tiltak": f2[f2_cols[12]].map(_safe_int),
+        # Innsatsgrupper for de som fikk jobb
+        "ungdomsgaranti_jobb": f2[f2_cols[13]].map(_safe_int),
+        "fatt_jobb_gode": f2[f2_cols[14]].map(_safe_int),
+        "fatt_jobb_nedsatt": f2[f2_cols[15]].map(_safe_int),
+        "fatt_jobb_veiledning": f2[f2_cols[16]].map(_safe_int),
+        "n_ag_f2": f2[f2_cols[17]].map(_safe_int),
+    })
+
+    # --- Join på workop_nr ---
+    df = f1_data.merge(f2_data, on="workop_nr", how="outer")
+    df = df.sort_values("workop_nr").reset_index(drop=True)
+
+    # --- Parse dato ---
+    df["dato"] = df["dato_raw"].map(_parse_forms_date)
+    # Warn about bad dates
+    bad_dates = df[df["dato_raw"].notna() & df["dato"].isna()]
+    for _, row in bad_dates.iterrows():
+        warns.append(f"WO {row['workop_nr']}: ugyldig dato '{row['dato_raw']}'")
+
+    # --- Beregn fatt_jobb med semantikk-skift ---
+    def _calc_fatt_jobb(row: pd.Series) -> int | None:
+        wo = row["workop_nr"]
+        jobb_wo = row["jobb_hos_wo_ag"]
+        jobb_annen = row["jobb_annen_ag"]
+        if jobb_wo is None:
+            return None
+        if wo <= SEMANTIKK_GRENSE:
+            # Historisk: kol 9 = total fått jobb
+            return jobb_wo
+        else:
+            # Nytt: kol 9 = kun WO-AG, kol 10 = annen AG
+            return jobb_wo + (jobb_annen or 0)
+
+    df["fatt_jobb"] = df.apply(_calc_fatt_jobb, axis=1)
+
+    # --- Kompatibilitetskolonner ---
+    df["fatt_jobb_tiltak"] = df["ansatt_med_tiltak"]
+
+    # raw_title for hover/tooltip — generert fra kontor + dato
+    df["raw_title"] = df.apply(
+        lambda r: f"WorkOp {r['nav_kontor'] or ''} {r['dato_raw'] or ''}".strip(),
+        axis=1,
+    )
+    df["title_kort"] = df["nav_kontor"].fillna("")
+
+    # fallback_year beregnes fra dato (brukes i bootstrap_usikkerhet)
+    df["fallback_year"] = df["dato"].apply(
+        lambda d: d.year if pd.notna(d) else 2026
+    )
+
+    # Kolonner som ikke finnes i Forms
+    df["dagsverk"] = None
+    df["kostnader"] = None
+
+    # har_data: True hvis vi har fatt_jobb
+    df["har_data"] = df["fatt_jobb"].notna()
+
+    # --- Sanity checks ---
+    aktive = df[df["har_data"]]
+    violations = aktive[aktive["fatt_jobb"] > aktive["oppmotte"]]
+    for _, row in violations.iterrows():
+        warns.append(
+            f"WO {row['workop_nr']}: fatt_jobb ({row['fatt_jobb']}) > "
+            f"oppmotte ({row['oppmotte']})"
+        )
+
+    # Velg kolonner i riktig rekkefølge (kompatibel med gammel API)
+    output_cols = [
+        "workop_nr", "raw_title", "title_kort", "dato", "fallback_year",
+        "nav_kontor",
+        "oppmotte_forberedende", "oppmotte", "arbeidsgivere",
+        "innkalt_intervju",
+        "fatt_jobb", "fatt_jobb_tiltak", "fatt_jobb_nedsatt",
+        "fatt_jobb_veiledning", "fatt_jobb_gode",
+        "jobb_hos_wo_ag", "jobb_annen_ag", "takket_nei", "ansatt_med_tiltak",
+        "ungdomsgaranti_oppmotte", "innsats_gode_oppmotte",
+        "innsats_nedsatt_oppmotte", "innsats_veiledning_oppmotte",
+        "ungdomsgaranti_jobb",
+        "dagsverk", "kostnader", "har_data",
+    ]
+    df = df[output_cols]
+
+    return df, warns
 
 
-def extract_arbeidsgivere(filepath: str | Path) -> tuple[pd.DataFrame, list[str]]:
+# ---------------------------------------------------------------------------
+# Arbeidsgiverdata — extract_arbeidsgivere()
+# ---------------------------------------------------------------------------
+
+
+def extract_arbeidsgivere(
+    forms2_path: str | Path | None = None,
+) -> tuple[pd.DataFrame, list[str]]:
     """
-    Henter arbeidsgiverdata fra alle aktive WorkOp-ark (rad 31–37).
+    Henter arbeidsgiverdata fra Forms 2 CSV (7 slots med branching).
 
     Returnerer:
         df_ag      — DataFrame med én rad per arbeidsgiver per WorkOp (lang format)
-        ag_missing — liste over arknavn uten arbeidsgiverdata i rad 31
+        ag_warnings — liste over WorkOps uten arbeidsgiverdata
     """
-    wb = _load_workbook(filepath)
-    sheet_names = _get_active_sheet_names(wb)
+    f2_path = Path(forms2_path) if forms2_path else FORMS2_CSV
+    warns: list[str] = []
+
+    f2 = _read_forms_csv(f2_path)
+    f2 = f2[f2["WorkOp"].notna() & (f2["WorkOp"].str.strip() != "")].copy()
+    f2["workop_nr"] = f2["WorkOp"].str.strip().astype(int)
+
+    f2_cols = f2.columns.tolist()
+
+    # AG-data starter ved kolonne 17 (n_ag) + 1 = kolonne 18
+    # Slot 0: cols 18-23 (Bedriftsnavn, Bransje, Ansatte, Rekruttering, Speed, Ansatt)
+    # Slot 1: cols 24-29 (suffixed med "1")
+    # ...
+    # Slot 6: cols 54-59 (suffixed med "6")
+    AG_FIELDS_PER_SLOT = 6
+    AG_START_COL = 18  # First employer field
 
     rows: list[dict] = []
-    missing: list[str] = []
 
-    for name in sheet_names:
-        ws = wb[name]
-        nr_match = WORKOP_PATTERN.match(name)
-        if not nr_match:
+    for _, record in f2.iterrows():
+        wo_nr = record["workop_nr"]
+        n_ag = _safe_int(record[f2_cols[17]])
+        if not n_ag or n_ag <= 0:
+            warns.append(f"WorkOp {wo_nr}: mangler arbeidsgiverdata (n_ag={n_ag})")
             continue
-        workop_nr = int(nr_match.group(1))
 
-        ag_rows = _extract_ag_kolonner(ws, workop_nr)
-        if ag_rows:
-            rows.extend(ag_rows)
-        else:
-            missing.append(name)
+        # Branching fyller fra SLUTTEN: start_slot = AG_SLOTS - n_ag
+        start_slot = AG_SLOTS - n_ag
+        ag_idx = 0
+
+        for slot in range(start_slot, AG_SLOTS):
+            col_offset = AG_START_COL + slot * AG_FIELDS_PER_SLOT
+            if col_offset + AG_FIELDS_PER_SLOT > len(f2_cols):
+                break
+
+            navn = str(record[f2_cols[col_offset]]).strip() if record[f2_cols[col_offset]] else ""
+            if not navn or navn == "nan":
+                continue
+
+            ag_idx += 1
+            bransje_raw = str(record[f2_cols[col_offset + 1]]).strip() if record[f2_cols[col_offset + 1]] else None
+            if bransje_raw == "nan":
+                bransje_raw = None
+
+            antall_ansatte = _safe_int(record[f2_cols[col_offset + 2]])
+
+            rows.append({
+                "workop_nr": wo_nr,
+                "ag_idx": ag_idx,
+                "navn": navn,
+                "er_anonym": False,  # Forms har alltid navngitte bedrifter
+                "bransje_raw": bransje_raw,
+                "bransje": _normaliser_bransje(bransje_raw),
+                "antall_ansatte": antall_ansatte,
+                "storrelse": _storrelse_kategori(antall_ansatte),
+                "rekrutteringsbehov": _safe_int(record[f2_cols[col_offset + 3]]),
+                "speedintervjuer": _safe_int(record[f2_cols[col_offset + 4]]),
+                "ansatt": _safe_int(record[f2_cols[col_offset + 5]]),
+            })
+
+        if n_ag and ag_idx == 0:
+            warns.append(f"WorkOp {wo_nr}: n_ag={n_ag} men ingen AG-data i slots")
 
     if rows:
         df_ag = pd.DataFrame(rows).sort_values(["workop_nr", "ag_idx"]).reset_index(drop=True)
@@ -509,7 +460,7 @@ def extract_arbeidsgivere(filepath: str | Path) -> tuple[pd.DataFrame, list[str]
         df_ag = pd.DataFrame(columns=[
             "workop_nr", "ag_idx", "navn", "er_anonym", "bransje_raw",
             "bransje", "antall_ansatte", "storrelse",
-            "rekrutteringsbehov", "speedintervjuer", "aktuell", "ansatt",
+            "rekrutteringsbehov", "speedintervjuer", "ansatt",
         ])
 
-    return df_ag, missing
+    return df_ag, warns

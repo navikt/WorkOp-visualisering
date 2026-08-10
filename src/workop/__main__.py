@@ -2,10 +2,11 @@
 
 from src.workop.extract import extract_all
 
-DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
-
-df, missing = extract_all(DATAFIL)
+df, warnings = extract_all()
 aktive = df[df["har_data"]]
 
-print(aktive[["workop_nr", "dato", "oppmotte", "fatt_jobb", "raw_title"]].to_string())
-print(f"\nArk uten data ({len(missing)} stk): {missing}")
+print(aktive[["workop_nr", "dato", "nav_kontor", "oppmotte", "fatt_jobb"]].to_string())
+if warnings:
+    print(f"\nAdvarsler ({len(warnings)} stk):")
+    for w in warnings:
+        print(f"  ⚠️  {w}")

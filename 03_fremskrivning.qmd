@@ -12,8 +12,8 @@ from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, estimat, snitt_fra_data, bootstrap_usikkerhet
 from src.workop.plots import fig_estimat, fig_jobb_usikkerhet
 
-DATAFIL = "data/Resultat og måling 1-32 Workop.xlsx"
-df_raw, _ = extract_all(DATAFIL)
+
+df_raw, _ = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
 snitt = snitt_fra_data(df)
 ```
