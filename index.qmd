@@ -13,7 +13,7 @@ import datetime
 
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, snitt_fra_data
-from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, tabell_per_kontor
+from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, tabell_per_kontor, antall_unike_kontorer
 
 df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
@@ -29,27 +29,44 @@ totalt_oppmotte = int(aktive["oppmotte"].sum())
 totalt_jobb = int(aktive["fatt_jobb"].sum())
 antall_workop = len(aktive)
 andel = totalt_jobb / totalt_oppmotte * 100
+n_lokasjoner, n_kontorer = antall_unike_kontorer(df)
+
+jobb_nedsatt = int(aktive["fatt_jobb_nedsatt"].sum())
+jobb_veiledning = int(aktive["fatt_jobb_veiledning"].sum())
+jobb_gode = int(aktive["fatt_jobb_gode"].sum())
+jobb_tiltak = int(aktive["fatt_jobb_tiltak"].sum())
+andel_jobb_tiltak = jobb_tiltak / totalt_jobb * 100
 
 from IPython.display import HTML
 
+def _boks(verdi, tekst, bg, border, farge):
+    return (
+        f'<div style="background:{bg}; border-left:4px solid {border}; '
+        f'padding:1rem 1.5rem; border-radius:4px; min-width:160px;">'
+        f'<div style="font-size:2rem; font-weight:700; color:{farge};">{verdi}</div>'
+        f'<div style="color:#555;">{tekst}</div></div>'
+    )
+
+blaa = ("#f0f8ff", "#0067C5", "#0067C5")
+gronn = ("#f0fff4", "#06893A", "#06893A")
+teal = ("#f0f8ff", "#368DA8", "#368DA8")
+
 html = f"""
 <div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1.5rem 0;">
-  <div style="background:#f0f8ff; border-left:4px solid #0067C5; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
-    <div style="font-size:2rem; font-weight:700; color:#0067C5;">{antall_workop}</div>
-    <div style="color:#555;">WorkOp-er gjennomført</div>
-  </div>
-  <div style="background:#f0f8ff; border-left:4px solid #0067C5; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
-    <div style="font-size:2rem; font-weight:700; color:#0067C5;">{totalt_oppmotte}</div>
-    <div style="color:#555;">Totalt oppmøtte</div>
-  </div>
-  <div style="background:#f0fff4; border-left:4px solid #06893A; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
-    <div style="font-size:2rem; font-weight:700; color:#06893A;">{totalt_jobb}</div>
-    <div style="color:#555;">Fikk jobb</div>
-  </div>
-  <div style="background:#f0fff4; border-left:4px solid #06893A; padding:1rem 1.5rem; border-radius:4px; min-width:160px;">
-    <div style="font-size:2rem; font-weight:700; color:#06893A;">{andel:.0f}%</div>
-    <div style="color:#555;">Andel fikk jobb</div>
-  </div>
+  {_boks(antall_workop, "WorkOp-er gjennomført", *blaa)}
+  {_boks(n_kontorer, f"Nav-kontorer ({n_lokasjoner} lokasjoner)", *blaa)}
+  {_boks(totalt_oppmotte, "Totalt oppmøtte", *blaa)}
+  {_boks(totalt_jobb, "Fikk jobb", *gronn)}
+  {_boks(f"{andel:.0f}%", "Andel fikk jobb", *gronn)}
+  {_boks(f"{andel_jobb_tiltak:.0f}%", "Andel som fikk jobb med tiltak", *gronn)}
+</div>
+
+<heading style="margin:1rem 0 0.5rem 0; font-size:1.2rem; font-weight:700;">Innsatsgrupper blant de som fikk jobb er:</heading>
+
+<div style="display:flex; gap:2rem; flex-wrap:wrap; margin:0.5rem 0 1.5rem 0;">
+  {_boks(jobb_veiledning, "Trenger veiledning", *teal)}
+  {_boks(jobb_nedsatt, "Nedsatt arbeidsevne", *teal)}
+  {_boks(jobb_gode, "Gode muligheter", *teal)}
 </div>
 """
 HTML(html)
@@ -72,15 +89,25 @@ fig_deltakere_jobb_tid(df).show()
 fig_kumulativ(df).show()
 ```
 
-## Resultater per Nav-kontor
+## Innsatsgrupper blant de som fikk jobb
+
+```{python}
+#| echo: false
+fig_innsatsgrupper_totalt(df).show()
+```
+
+Ukjent innsatsgruppe er der delkategoriene ikke summerer til totalen —
+typisk eldre registreringer der innsatsgruppe ikke ble ført.
+
+## Resultater per lokasjon
 
 ```{python}
 #| echo: false
 kontor_df = tabell_per_kontor(df)
-n_kontorer = len(kontor_df)
+n_lok = len(kontor_df)
 n_uten = int(aktive["nav_kontor"].isna().sum())
-note = f" ({n_uten} WorkOps uten registrert kontor er utelatt)" if n_uten else ""
-print(f"{n_kontorer} Nav-kontorer har gjennomført WorkOp{note}.")
+note = f" ({n_uten} WorkOps uten registrert lokasjon er utelatt)" if n_uten else ""
+print(f"{n_lok} lokasjoner har gjennomført WorkOp{note}. Noen lokasjoner er samarbeid mellom flere Nav-kontorer.")
 display(
     kontor_df.style
     .format({"Andel (%)": "{:.1f}", "Oppmøtte": "{:.0f}", "Fått jobb": "{:.0f}"})

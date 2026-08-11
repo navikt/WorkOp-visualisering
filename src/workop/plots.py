@@ -20,6 +20,24 @@ import pandas as pd
 import plotly.graph_objects as go
 
 
+# Antall faktiske Nav-kontorer per lokasjon (der samarbeid gir >1)
+KONTORER_PER_LOKASJON: dict[str, int] = {
+    "Øvre Romerike": 4,
+    "Falkenborg/Lerkendal": 2,
+    "Kongsberg/Øvre Eiker": 2,
+    "Skaun Melhus": 2,
+}
+
+
+def antall_unike_kontorer(df: pd.DataFrame) -> tuple[int, int]:
+    """Returnerer (antall lokasjoner, antall faktiske Nav-kontorer)."""
+    aktive = df[df["har_data"]].copy()
+    lokasjoner = aktive["nav_kontor"].dropna().unique().tolist()
+    n_lokasjoner = len(lokasjoner)
+    n_kontorer = sum(KONTORER_PER_LOKASJON.get(lok, 1) for lok in lokasjoner)
+    return n_lokasjoner, n_kontorer
+
+
 def tabell_per_kontor(df: pd.DataFrame) -> pd.DataFrame:
     """Aggregert tabell: Nav-kontor | Antall WOs | Oppmøtte | Fått jobb | Andel."""
     aktive = df[df["har_data"]].copy()
@@ -35,15 +53,16 @@ def tabell_per_kontor(df: pd.DataFrame) -> pd.DataFrame:
     )
     grp["andel"] = (grp["fatt_jobb"] / grp["oppmotte"] * 100).round(1)
     grp = grp.sort_values("fatt_jobb", ascending=False).reset_index(drop=True)
-    grp.columns = ["Nav-kontor", "Antall WorkOp", "Oppmøtte", "Fått jobb", "Andel (%)"]
+    grp.columns = ["Lokasjon", "Antall WorkOp", "Oppmøtte", "Fått jobb", "Andel (%)"]
     return grp
+
 
 # ---------------------------------------------------------------------------
 # Fargepalett (Nav-inspirert, tilgjengelig)
 # ---------------------------------------------------------------------------
-FARGE_OPPMOTTE = "#0067C5"    # Nav-blå
-FARGE_JOBB = "#06893A"        # Nav-grønn
-FARGE_ESTIMAT = "#C77300"     # Oransje (fremskrivning)
+FARGE_OPPMOTTE = "#0067C5"  # Nav-blå
+FARGE_JOBB = "#06893A"  # Nav-grønn
+FARGE_ESTIMAT = "#C77300"  # Oransje (fremskrivning)
 FARGE_HISTORISK = "#0067C5"
 
 FARGE_NEDSATT = "#368DA8"
@@ -56,6 +75,45 @@ PLOTLY_TEMPLATE = "plotly_white"
 # Legend nederst og toppmargin for lang tittel — unngår overlapp med Plotly-toolbar
 _LEGEND_BUNN = dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5)
 _MARGIN = dict(t=70, b=80)
+_FARGE_UKJENT = "#AAAAAA"
+
+
+def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
+    """Horisontalt søylediagram: totalt antall som fikk jobb per innsatsgruppe."""
+    aktive = df[df["har_data"]].copy()
+
+    nedsatt = aktive["fatt_jobb_nedsatt"].sum()
+    veiledning = aktive["fatt_jobb_veiledning"].sum()
+    gode = aktive["fatt_jobb_gode"].sum()
+    kjent_sum = aktive[["fatt_jobb_nedsatt", "fatt_jobb_veiledning", "fatt_jobb_gode"]].sum(axis=1)
+    ukjent = (aktive["fatt_jobb"] - kjent_sum).clip(lower=0).sum()
+
+    kategorier = ["Trenger veiledning", "Nedsatt arbeidsevne", "Gode muligheter", "Ukjent"]
+    verdier = [veiledning, nedsatt, gode, ukjent]
+    farger = [FARGE_VEILEDNING, FARGE_NEDSATT, FARGE_GODE, _FARGE_UKJENT]
+
+    fig = go.Figure(
+        go.Bar(
+            x=verdier,
+            y=kategorier,
+            orientation="h",
+            marker_color=farger,
+            text=[f"{int(v)}" for v in verdier],
+            textposition="outside",
+            hovertemplate="%{y}: %{x:.0f} personer<extra></extra>",
+        )
+    )
+    totalt = int(aktive["fatt_jobb"].sum())
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=f"Innsatsgrupper blant de som fikk jobb (n={totalt})",
+        xaxis_title="Antall personer",
+        yaxis_title=None,
+        showlegend=False,
+        margin=dict(t=70, b=50, l=180, r=60),
+        xaxis_range=[0, max(verdier) * 1.15],
+    )
+    return fig
 
 
 def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
@@ -88,31 +146,33 @@ def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
     note = f" ({antall_uten} WorkOps uten dato er utelatt)" if antall_uten else ""
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=labels,
-        y=kvartalsvis["fatt_jobb"].tolist(),
-        name="Fikk jobb",
-        marker_color=FARGE_JOBB,
-        customdata=customdata,
-        hovertemplate=(
-            "<b>%{x}</b><br>"
-            "%{customdata[0]} WorkOps — %{customdata[1]} oppmøtte<br>"
-            "Fikk jobb: <b>%{y}</b><extra></extra>"
-        ),
-    ))
-    fig.add_trace(go.Bar(
-        x=labels,
-        y=ikke_jobb,
-        name="Oppmøtte uten jobb",
-        marker_color=FARGE_OPPMOTTE,
-        opacity=0.5,
-        customdata=customdata,
-        hovertemplate=(
-            "<b>%{x}</b><br>"
-            "%{customdata[0]} WorkOps — %{customdata[1]} oppmøtte<br>"
-            "Uten jobb: %{y}<extra></extra>"
-        ),
-    ))
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=kvartalsvis["fatt_jobb"].tolist(),
+            name="Fikk jobb",
+            marker_color=FARGE_JOBB,
+            customdata=customdata,
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                "%{customdata[0]} WorkOps — %{customdata[1]} oppmøtte<br>"
+                "Fikk jobb: <b>%{y}</b><extra></extra>"
+            ),
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=ikke_jobb,
+            name="Oppmøtte uten jobb",
+            marker_color=FARGE_OPPMOTTE,
+            opacity=0.5,
+            customdata=customdata,
+            hovertemplate=(
+                "<b>%{x}</b><br>%{customdata[0]} WorkOps — %{customdata[1]} oppmøtte<br>Uten jobb: %{y}<extra></extra>"
+            ),
+        )
+    )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title=f"Programvekst over tid — oppmøtte og fikk jobb per kvartal{note}",
@@ -137,24 +197,28 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
     x = aktive["dato"].dt.strftime("%Y-%m-%d").where(aktive["dato"].notna(), None).tolist()
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=x,
-        y=aktive["kumulativ_oppmotte"].tolist(),
-        mode="lines+markers",
-        name="Kumulativt oppmøtte",
-        fill="tonexty",
-        fillcolor="rgba(0, 103, 197, 0.1)",
-        line=dict(color=FARGE_OPPMOTTE, width=2),
-    ))
-    fig.add_trace(go.Scatter(
-        x=x,
-        y=aktive["kumulativ_fatt_jobb"].tolist(),
-        mode="lines+markers",
-        name="Kumulativt fikk jobb",
-        fill="tozeroy",
-        fillcolor="rgba(6, 137, 58, 0.2)",
-        line=dict(color=FARGE_JOBB, width=2),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=aktive["kumulativ_oppmotte"].tolist(),
+            mode="lines+markers",
+            name="Kumulativt oppmøtte",
+            fill="tonexty",
+            fillcolor="rgba(0, 103, 197, 0.1)",
+            line=dict(color=FARGE_OPPMOTTE, width=2),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=aktive["kumulativ_fatt_jobb"].tolist(),
+            mode="lines+markers",
+            name="Kumulativt fikk jobb",
+            fill="tozeroy",
+            fillcolor="rgba(6, 137, 58, 0.2)",
+            line=dict(color=FARGE_JOBB, width=2),
+        )
+    )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title="Kumulativt antall deltakere og jobbplasseringer",
@@ -172,10 +236,20 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
 
 # Fargepalett for kategoriske bransjer
 _FARGE_BRANSJE = [
-    "#0067C5", "#06893A", "#C77300", "#7B3F9E",
-    "#D62728", "#8C564B", "#E377C2", "#17BECF",
-    "#BCBD22", "#7F7F7F", "#1F77B4", "#FF7F0E",
-    "#2CA02C", "#9467BD",
+    "#0067C5",
+    "#06893A",
+    "#C77300",
+    "#7B3F9E",
+    "#D62728",
+    "#8C564B",
+    "#E377C2",
+    "#17BECF",
+    "#BCBD22",
+    "#7F7F7F",
+    "#1F77B4",
+    "#FF7F0E",
+    "#2CA02C",
+    "#9467BD",
 ]
 
 _STORRELSE_ORDEN = ["Mikro\n(<10)", "Liten\n(10–49)", "Medium\n(50–249)", "Stor\n(≥250)"]
@@ -206,20 +280,19 @@ def fig_bransje(df_ag: pd.DataFrame) -> go.Figure:
         .sort_values("antall", ascending=True)  # ascending → høyest øverst i horisontal bar
     )
 
-    farger = [
-        _FARGE_BRANSJE[i % len(_FARGE_BRANSJE)]
-        for i in range(len(grp))
-    ]
+    farger = [_FARGE_BRANSJE[i % len(_FARGE_BRANSJE)] for i in range(len(grp))]
 
-    fig = go.Figure(go.Bar(
-        x=grp["antall"].tolist(),
-        y=grp["bransje"].tolist(),
-        orientation="h",
-        marker_color=farger,
-        text=grp["antall"].tolist(),
-        textposition="outside",
-        hovertemplate="%{y}: %{x} arbeidsgiverbesøk<extra></extra>",
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=grp["antall"].tolist(),
+            y=grp["bransje"].tolist(),
+            orientation="h",
+            marker_color=farger,
+            text=grp["antall"].tolist(),
+            textposition="outside",
+            hovertemplate="%{y}: %{x} arbeidsgiverbesøk<extra></extra>",
+        )
+    )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title=f"Bransjefordeling blant arbeidsgivere (n={n_med} av {n_total} med kjent bransje)",
@@ -245,31 +318,22 @@ def fig_bedriftsstorrelse(df_ag: pd.DataFrame) -> go.Figure:
     med_storrelse = med_storrelse.copy()
     med_storrelse["storrelse_label"] = med_storrelse["storrelse"].map(_STORRELSE_MAP)
 
-    grp = (
-        med_storrelse.groupby("storrelse_label")
-        .size()
-        .reindex(_STORRELSE_ORDEN, fill_value=0)
-        .reset_index()
-    )
+    grp = med_storrelse.groupby("storrelse_label").size().reindex(_STORRELSE_ORDEN, fill_value=0).reset_index()
     grp.columns = ["kategori", "antall"]
 
-    fig = go.Figure(go.Bar(
-        x=grp["kategori"].tolist(),
-        y=grp["antall"].tolist(),
-        marker_color=_STORRELSE_FARGER,
-        text=grp["antall"].tolist(),
-        textposition="outside",
-        hovertemplate=(
-            "%{x}<br>"
-            "Antall arbeidsgivere: %{y}<extra></extra>"
-        ),
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=grp["kategori"].tolist(),
+            y=grp["antall"].tolist(),
+            marker_color=_STORRELSE_FARGER,
+            text=grp["antall"].tolist(),
+            textposition="outside",
+            hovertemplate=("%{x}<br>Antall arbeidsgivere: %{y}<extra></extra>"),
+        )
+    )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
-        title=(
-            f"Bedriftsstørrelse (EU SME-standard) — "
-            f"n={n_med} av {n_total} med kjent antall ansatte"
-        ),
+        title=(f"Bedriftsstørrelse — <sub>{n_med} av {n_total} bedrifter er registrert med antall ansatte</sub>"),
         xaxis_title="Størrelsesbøtte",
         yaxis_title="Antall arbeidsgivere",
         showlegend=False,
@@ -296,61 +360,72 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
 
     # Rene historiske år — grønne søyler
     if not historisk.empty:
-        fig.add_trace(go.Bar(
-            x=historisk["aar"].astype(str).tolist(),
-            y=historisk["faktisk_jobb"].tolist(),
-            name="Faktisk",
-            marker_color=FARGE_JOBB,
-            hovertemplate="År %{x}<br>Fikk jobb: %{y:.0f}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=historisk["aar"].astype(str).tolist(),
+                y=historisk["faktisk_jobb"].tolist(),
+                name="Faktisk",
+                marker_color=FARGE_JOBB,
+                hovertemplate="År %{x}<br>Fikk jobb: %{y:.0f}<extra></extra>",
+            )
+        )
 
     # Delvise år — stablet søyle: faktisk bunn + estimert topp
     if not delvis.empty:
         # Faktisk del (grønn solid) — uten legend-oppføring (samme farge som "Faktisk")
-        fig.add_trace(go.Bar(
-            x=delvis["aar"].astype(str).tolist(),
-            y=delvis["faktisk_jobb"].tolist(),
-            name="Faktisk (delvis år)",
-            marker_color=FARGE_JOBB,
-            showlegend=False,
-            hovertemplate=(
-                "År %{x}<br>"
-                "Gjennomført: %{y:.0f}<extra></extra>"
-            ),
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=delvis["aar"].astype(str).tolist(),
+                y=delvis["faktisk_jobb"].tolist(),
+                name="Faktisk (delvis år)",
+                marker_color=FARGE_JOBB,
+                showlegend=False,
+                hovertemplate=("År %{x}<br>Gjennomført: %{y:.0f}<extra></extra>"),
+            )
+        )
         # Gjenstående estimat (stiplet oransje topp)
-        fig.add_trace(go.Bar(
-            x=delvis["aar"].astype(str).tolist(),
-            y=delvis["est_rest"].tolist(),
-            name="Gjenstående (estimat)",
-            marker_color=FARGE_ESTIMAT,
-            marker_pattern_shape="/",
-            opacity=0.7,
-            error_y=dict(
-                type="data",
-                array=[(hi - fakt - rest) for hi, fakt, rest in zip(
-                    delvis["ci_hi"].tolist(),
-                    delvis["faktisk_jobb"].tolist(),
-                    delvis["est_rest"].tolist(),
-                )],
-                arrayminus=[(fakt + rest - lo) for lo, fakt, rest in zip(
-                    delvis["ci_lo"].tolist(),
-                    delvis["faktisk_jobb"].tolist(),
-                    delvis["est_rest"].tolist(),
-                )],
-                visible=True,
-                color="#555555",
-            ),
-            hovertemplate=(
-                "År %{x}<br>"
-                "Gjenstående estimat: %{y:.0f}<br>"
-                "95 % CI: [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<extra></extra>"
-            ),
-            customdata=list(zip(
-                delvis["ci_lo"].tolist(),
-                delvis["ci_hi"].tolist(),
-            )),
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=delvis["aar"].astype(str).tolist(),
+                y=delvis["est_rest"].tolist(),
+                name="Gjenstående (estimat)",
+                marker_color=FARGE_ESTIMAT,
+                marker_pattern_shape="/",
+                opacity=0.7,
+                error_y=dict(
+                    type="data",
+                    array=[
+                        (hi - fakt - rest)
+                        for hi, fakt, rest in zip(
+                            delvis["ci_hi"].tolist(),
+                            delvis["faktisk_jobb"].tolist(),
+                            delvis["est_rest"].tolist(),
+                        )
+                    ],
+                    arrayminus=[
+                        (fakt + rest - lo)
+                        for lo, fakt, rest in zip(
+                            delvis["ci_lo"].tolist(),
+                            delvis["faktisk_jobb"].tolist(),
+                            delvis["est_rest"].tolist(),
+                        )
+                    ],
+                    visible=True,
+                    color="#555555",
+                ),
+                hovertemplate=(
+                    "År %{x}<br>"
+                    "Gjenstående estimat: %{y:.0f}<br>"
+                    "95 % CI: [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<extra></extra>"
+                ),
+                customdata=list(
+                    zip(
+                        delvis["ci_lo"].tolist(),
+                        delvis["ci_hi"].tolist(),
+                    )
+                ),
+            )
+        )
 
     # Fremtidige år — søyler med error bars (CI)
     if not fremskrivning.empty:
@@ -359,27 +434,29 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
         ci_hi = fremskrivning["ci_hi"].tolist()
         est_jobb = fremskrivning["est_jobb"].tolist()
 
-        fig.add_trace(go.Bar(
-            x=x_est,
-            y=est_jobb,
-            name="Estimat",
-            marker_color=FARGE_ESTIMAT,
-            marker_pattern_shape="/",
-            opacity=0.7,
-            error_y=dict(
-                type="data",
-                array=[hi - est for hi, est in zip(ci_hi, est_jobb)],
-                arrayminus=[est - lo for lo, est in zip(ci_lo, est_jobb)],
-                visible=True,
-                color="#555555",
-            ),
-            hovertemplate=(
-                "År %{x} (estimat)<br>"
-                "Sentralestimat: %{y:.0f}<br>"
-                "95 % CI: [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<extra></extra>"
-            ),
-            customdata=list(zip(ci_lo, ci_hi)),
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=x_est,
+                y=est_jobb,
+                name="Estimat",
+                marker_color=FARGE_ESTIMAT,
+                marker_pattern_shape="/",
+                opacity=0.7,
+                error_y=dict(
+                    type="data",
+                    array=[hi - est for hi, est in zip(ci_hi, est_jobb)],
+                    arrayminus=[est - lo for lo, est in zip(ci_lo, est_jobb)],
+                    visible=True,
+                    color="#555555",
+                ),
+                hovertemplate=(
+                    "År %{x} (estimat)<br>"
+                    "Sentralestimat: %{y:.0f}<br>"
+                    "95 % CI: [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<extra></extra>"
+                ),
+                customdata=list(zip(ci_lo, ci_hi)),
+            )
+        )
 
     fig.update_layout(
         template=PLOTLY_TEMPLATE,

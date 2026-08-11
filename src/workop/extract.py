@@ -427,21 +427,27 @@ def extract_arbeidsgivere(
                 break
 
             navn = str(record[f2_cols[col_offset]]).strip() if record[f2_cols[col_offset]] else ""
-            if not navn or navn == "nan":
-                continue
+            if navn == "nan":
+                navn = ""
 
-            ag_idx += 1
+            # Sjekk om slotten har noe data (navn, bransje, eller tall)
             bransje_raw = str(record[f2_cols[col_offset + 1]]).strip() if record[f2_cols[col_offset + 1]] else None
-            if bransje_raw == "nan":
+            if bransje_raw in ("nan", ""):
                 bransje_raw = None
 
             antall_ansatte = _safe_int(record[f2_cols[col_offset + 2]])
 
+            # Inkluder AG hvis noen felter har data
+            has_data = bool(navn) or bransje_raw is not None or antall_ansatte is not None
+            if not has_data:
+                continue
+
+            ag_idx += 1
+
             rows.append({
                 "workop_nr": wo_nr,
                 "ag_idx": ag_idx,
-                "navn": navn,
-                "er_anonym": False,  # Forms har alltid navngitte bedrifter
+                "navn": navn or None,
                 "bransje_raw": bransje_raw,
                 "bransje": _normaliser_bransje(bransje_raw),
                 "antall_ansatte": antall_ansatte,
@@ -458,7 +464,7 @@ def extract_arbeidsgivere(
         df_ag = pd.DataFrame(rows).sort_values(["workop_nr", "ag_idx"]).reset_index(drop=True)
     else:
         df_ag = pd.DataFrame(columns=[
-            "workop_nr", "ag_idx", "navn", "er_anonym", "bransje_raw",
+            "workop_nr", "ag_idx", "navn", "bransje_raw",
             "bransje", "antall_ansatte", "storrelse",
             "rekrutteringsbehov", "speedintervjuer", "ansatt",
         ])

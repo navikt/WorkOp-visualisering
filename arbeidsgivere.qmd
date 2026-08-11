@@ -36,8 +36,11 @@ fig_bransje(df_ag).show()
 ```
 
 ## Bedriftsstørrelse
+```{python}
+#| echo: false
+fig_bedriftsstorrelse(df_ag).show()
+```
 
-Fordeling etter EU SMEs standard størrelseskategorier.
 
 | Kategori | Antall ansatte |
 |---|---|
@@ -46,19 +49,4 @@ Fordeling etter EU SMEs standard størrelseskategorier.
 | Medium | 50–249 |
 | Stor | ≥ 250 |
 
-```{python}
-#| echo: false
-fig_bedriftsstorrelse(df_ag).show()
-```
-
-## Datakvalitet
-
-```{python}
-#| echo: false
-if ag_missing:
-    print("Advarsler om arbeidsgiverdata:")
-    for w in ag_missing:
-        print(f"  ⚠️  {w}")
-else:
-    print("Alle WorkOps har arbeidsgiverdata.")
-```
+Fordeling etter EU SMEs standard størrelseskategorier.
