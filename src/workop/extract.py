@@ -173,18 +173,19 @@ def _safe_int(value: object) -> int | None:
 
 
 def _parse_forms_date(raw: str | None) -> datetime | None:
-    """Parser dato på formatet dd/mm/yyyy fra Forms CSV."""
+    """Parser dato fra Forms CSV (dd/mm/yyyy eller dd.mm.yyyy)."""
     if not raw or not raw.strip():
         return None
     raw = raw.strip()
-    try:
-        dt = datetime.strptime(raw, "%d/%m/%Y")
-        # Fang åpenbare typos (år utenfor rimelig intervall)
-        if dt.year < 2023 or dt.year > 2030:
-            return None
-        return dt
-    except ValueError:
-        return None
+    for fmt in ("%d/%m/%Y", "%d.%m.%Y"):
+        try:
+            dt = datetime.strptime(raw, fmt)
+            if dt.year < 2023 or dt.year > 2030:
+                return None
+            return dt
+        except ValueError:
+            continue
+    return None
 
 
 def _read_forms_csv(filepath: str | Path) -> pd.DataFrame:
@@ -197,6 +198,17 @@ def _read_forms_csv(filepath: str | Path) -> pd.DataFrame:
     )
     df.columns = _normaliser_kolonnenavn(df.columns.tolist())
     return df
+
+
+def _fjern_testrader(df: pd.DataFrame) -> pd.DataFrame:
+    """Fjerner rader der Email, Name og Nav-kontor alle er 'test' (case-insensitive)."""
+    cols = df.columns.tolist()
+    er_test = (
+        df["Email"].str.strip().str.lower().eq("test")
+        & df["Name"].str.strip().str.lower().eq("test")
+        & df[cols[7]].str.strip().str.lower().eq("test")
+    )
+    return df[~er_test].copy()
 
 
 def _normaliser_bransje(raw: str | None) -> str | None:
@@ -257,6 +269,10 @@ def extract_all(
     f1 = _read_forms_csv(f1_path)
     f2 = _read_forms_csv(f2_path)
 
+    # Fjern test-rader (Email, Name og Nav-kontor er alle "test")
+    f1 = _fjern_testrader(f1)
+    f2 = _fjern_testrader(f2)
+
     # Filtrer tomme rader (WorkOp-felt er tomt eller NaN)
     f1 = f1[f1["WorkOp"].notna() & (f1["WorkOp"].str.strip() != "")].copy()
     f2 = f2[f2["WorkOp"].notna() & (f2["WorkOp"].str.strip() != "")].copy()
@@ -304,7 +320,7 @@ def extract_all(
     df = df.sort_values("workop_nr").reset_index(drop=True)
 
     # --- Parse dato ---
-    df["dato"] = df["dato_raw"].map(_parse_forms_date)
+    df["dato"] = pd.to_datetime(df["dato_raw"].map(_parse_forms_date))
     # Warn about bad dates
     bad_dates = df[df["dato_raw"].notna() & df["dato"].isna()]
     for _, row in bad_dates.iterrows():
@@ -395,6 +411,7 @@ def extract_arbeidsgivere(
     warns: list[str] = []
 
     f2 = _read_forms_csv(f2_path)
+    f2 = _fjern_testrader(f2)
     f2 = f2[f2["WorkOp"].notna() & (f2["WorkOp"].str.strip() != "")].copy()
     f2["workop_nr"] = f2["WorkOp"].str.strip().astype(int)
 
