@@ -1,0 +1,126 @@
+
+---
+title: "WorkOp — manuelle tall"
+---
+
+Blant de første WorkOp-ene har det blitt samlet inn diverse data om deltakerne
+utover det som registreres i Forms. Det varierer hva som er registrert, så
+følgende tall gjelder **forskjellige utvalg** av WorkOp-er.
+Tallene er derfor ikke direkte sammenlignbare, men tegner et bilde av
+deltakerne som får jobb gjennom WorkOp.
+
+```{python}
+#| echo: false
+
+from IPython.display import HTML
+
+def _boks(verdi, tekst, bg, border, farge):
+    return (
+        f'<div style="background:{bg}; border-left:4px solid {border}; '
+        f'padding:1rem 1.5rem; border-radius:4px; min-width:180px;">'
+        f'<div style="font-size:2rem; font-weight:700; color:{farge};">{verdi}</div>'
+        f'<div style="color:#555;">{tekst}</div></div>'
+    )
+
+blaa = ("#f0f8ff", "#0067C5", "#0067C5")
+gronn = ("#f0fff4", "#06893A", "#06893A")
+teal = ("#f0f8ff", "#368DA8", "#368DA8")
+oransje = ("#fff8f0", "#C77300", "#C77300")
+```
+
+## Ytelser blant de som fikk jobb
+
+Data fra 45 WorkOp-er.
+
+```{python}
+#| echo: false
+from src.workop.extract import extract_all
+from src.workop.transform import legg_til_kalkulerte_kolonner
+
+df_raw, _ = extract_all()
+df = legg_til_kalkulerte_kolonner(df_raw)
+aktive = df[df["har_data"]]
+snitt_jobb = aktive["fatt_jobb"].mean()
+
+sum_ytelser = 77_131_676
+n_wo_ytelser = 45
+ytelse_per_person = sum_ytelser / (n_wo_ytelser * snitt_jobb)
+
+# Ferdig-formaterte variabler for inline bruk
+sum_ytelser_mill = f"{sum_ytelser / 1e6:.1f}"
+ytelse_per_person_tusen = f"{ytelse_per_person / 1e3:.0f}"
+snitt_jobb_fmt = f"{snitt_jobb:.1f}"
+
+html = f"""
+<div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0 1.5rem 0;">
+  {_boks(f"{sum_ytelser_mill} mill kr", "Sum årlige ytelser før jobb", *oransje)}
+  {_boks(f"{ytelse_per_person_tusen} 000 kr", "Estimert ytelse spart per person i jobb", *oransje)}
+</div>
+"""
+HTML(html)
+```
+
+De som fikk jobb gjennom WorkOp mottok til sammen `{python} sum_ytelser_mill` mill kr
+i årlige ytelser fra Nav før de kom i jobb. Dette inkluderer AAP, sosialhjelp
+og andre ytelser. Med snitt `{python} snitt_jobb_fmt` som fikk jobb per WorkOp gir det
+et estimat på `{python} ytelse_per_person_tusen` 000 kr spart per person i jobb.
+
+## Utenforskap
+
+Data fra 26 WorkOp-er (283 som fikk jobb).
+
+```{python}
+#| echo: false
+n_wo = 26
+n_jobb = 283
+snitt_mnd = 4679.5 / n_jobb
+n_aap = 136
+sum_aap = 44_608_000
+n_sosial = 85
+sum_sosial = 24_395_000
+n_ingen = 51
+
+snitt_mnd_fmt = f"{snitt_mnd:.0f}"
+sum_aap_sosial_mill = f"{(sum_aap + sum_sosial) / 1e6:.1f}"
+
+html = f"""
+<div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0 1.5rem 0;">
+  {_boks(f"{snitt_mnd_fmt} mnd", "Snitt måneder registrert i Nav", *teal)}
+  {_boks(n_aap, f"Mottok AAP ({sum_aap / 1e6:.1f} mill kr/år)", *oransje)}
+  {_boks(n_sosial, f"Mottok sosialhjelp ({sum_sosial / 1e6:.1f} mill kr/år)", *oransje)}
+  {_boks(n_ingen, "Ingen ytelse", *blaa)}
+</div>
+"""
+HTML(html)
+```
+
+Blant de `{python} n_jobb` som fikk jobb hadde de i snitt vært registrert i Nav
+i `{python} snitt_mnd_fmt` måneder. Ytelsesfordelingen viser at flertallet
+mottok AAP eller sosialhjelp — samlet `{python} sum_aap_sosial_mill` mill kr/år.
+
+## Ungdomsgarantien
+
+Data fra 35 WorkOp-er.
+
+```{python}
+#| echo: false
+n_wo_ug = 35
+n_deltakere = 799
+n_forb = 875
+n_jobb_ug = 372
+andel_ug = 0.95
+andel_ug_fmt = f"{andel_ug:.0%}"
+
+html = f"""
+<div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0 1.5rem 0;">
+  {_boks(n_deltakere, f"Deltakere på {n_wo_ug} WorkOp-er", *blaa)}
+  {_boks(n_forb, "Oppmøtte forberedende workshop", *blaa)}
+  {_boks(n_jobb_ug, "Fikk jobb", *gronn)}
+  {_boks(andel_ug_fmt, "Andel i ungdomsgarantien som fikk jobb", *gronn)}
+</div>
+"""
+HTML(html)
+```
+
+Blant deltakere omfattet av ungdomsgarantien (16–30 år) fikk `{python} andel_ug_fmt`
+jobb — en høyere andel enn totalgjennomsnittet.

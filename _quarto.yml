@@ -12,6 +12,8 @@ website:
         text: Fremskrivning
       - href: arbeidsgivere.qmd
         text: Arbeidsgivere
+      - href: manuelle-tall.qmd
+        text: Manuelle tall
       - href: data.qmd
         text: Data
 
