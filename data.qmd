@@ -1,0 +1,90 @@
+---
+title: "WorkOp — datagrunnlag"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import warnings
+warnings.filterwarnings("ignore")
+
+import pandas as pd
+from IPython.display import HTML
+
+from src.workop.extract import extract_all
+from src.workop.transform import legg_til_kalkulerte_kolonner
+```
+
+## Komplett datasett
+
+Tabellen under viser alle WorkOp-arrangementer med nøkkelkolonner fra begge
+Forms-innsamlinger. Rader der oppmøtte eller fått-jobb avviker mellom Forms 1 og
+Forms 2 er markert med ⚠️.
+
+```{python}
+#| echo: false
+df_raw, warnings_list = extract_all()
+df = legg_til_kalkulerte_kolonner(df_raw)
+aktive = df[df["har_data"]].copy()
+
+# Velg visningskolonner
+vis = aktive[[
+    "workop_nr", "dato", "nav_kontor",
+    "oppmotte", "deltakere_f2",
+    "fatt_jobb", "jobb_hos_wo_ag", "jobb_annen_ag",
+    "andel_jobb",
+    "arbeidsgivere", "ansatt_med_tiltak",
+    "fatt_jobb_veiledning", "fatt_jobb_nedsatt", "fatt_jobb_gode",
+]].copy()
+
+vis["dato"] = vis["dato"].dt.strftime("%d.%m.%Y").fillna("—")
+vis = vis.sort_values("workop_nr").reset_index(drop=True)
+
+# Markér diff mellom Forms 1 og Forms 2 oppmøtte
+vis["diff_oppmotte"] = ""
+mask = vis["deltakere_f2"].notna() & vis["oppmotte"].notna() & (vis["oppmotte"] != vis["deltakere_f2"])
+vis.loc[mask, "diff_oppmotte"] = "⚠️"
+
+vis.columns = [
+    "WO", "Dato", "Lokasjon",
+    "Deltakere (F1)", "Deltakere (F2)",
+    "Fått jobb", "Jobb WO-AG", "Jobb annen AG",
+    "Andel jobb",
+    "Arbeids-givere", "Jobb med tiltak",
+    "Jobb veiledning", "Jobb nedsatt", "Jobb gode",
+    "Advarsel",
+]
+
+display(
+    vis.style
+    .format({
+        "Andel jobb": "{:.0%}",
+        "Oppmøtte (F1)": "{:.0f}",
+        "Deltakere (F2)": "{:.0f}",
+        "Fått jobb": "{:.0f}",
+        "Jobb WO-AG": "{:.0f}",
+        "Jobb annen AG": "{:.0f}",
+        "Arbeids-givere": "{:.0f}",
+        "Jobb med tiltak": "{:.0f}",
+        "Jobb veiledning": "{:.0f}",
+        "Jobb nedsatt": "{:.0f}",
+        "Jobb gode": "{:.0f}",
+    }, na_rep="—")
+    .hide(axis="index")
+)
+```
+
+**Diff-kolonnen** viser ⚠️ der oppmøtte fra Forms 1 (gjennomføring) avviker fra
+deltakertall i Forms 2 (oppfølging). Små avvik er normalt — noen deltakere kan
+ha gått før speed-intervjuene.
+
+## Datakvalitetsadvarsler
+
+```{python}
+#| echo: false
+if warnings_list:
+    for w in warnings_list:
+        print(f"⚠️ {w}")
+else:
+    print("✅ Ingen datakvalitetsadvarsler.")
+```

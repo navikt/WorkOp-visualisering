@@ -12,6 +12,8 @@ website:
         text: Fremskrivning
       - href: arbeidsgivere.qmd
         text: Arbeidsgivere
+      - href: data.qmd
+        text: Data
 
 format:
   html:

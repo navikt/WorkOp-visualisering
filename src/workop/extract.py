@@ -377,7 +377,7 @@ def extract_all(
     output_cols = [
         "workop_nr", "raw_title", "title_kort", "dato", "fallback_year",
         "nav_kontor",
-        "oppmotte_forberedende", "oppmotte", "arbeidsgivere",
+        "oppmotte_forberedende", "oppmotte", "deltakere_f2", "arbeidsgivere",
         "innkalt_intervju",
         "fatt_jobb", "fatt_jobb_tiltak", "fatt_jobb_nedsatt",
         "fatt_jobb_veiledning", "fatt_jobb_gode",

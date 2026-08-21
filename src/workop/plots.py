@@ -116,6 +116,73 @@ def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def fig_histogram_jobb(df: pd.DataFrame) -> go.Figure:
+    """Stablet søylediagram: hver WorkOp er et segment, gruppert per fatt_jobb-verdi."""
+    aktive = df[df["har_data"]].copy()
+    jobb = aktive[["workop_nr", "fatt_jobb", "nav_kontor", "dato", "oppmotte"]].dropna(subset=["fatt_jobb"]).copy()
+    jobb["fatt_jobb"] = jobb["fatt_jobb"].astype(int)
+    jobb["andel_fatt_jobb"] = (jobb["fatt_jobb"] / jobb["oppmotte"] * 100).round(0).astype(str) + "%"
+    snitt = jobb["fatt_jobb"].mean()
+
+    # Sorter og tildel stabel-posisjon per x-verdi
+    jobb = jobb.sort_values(["fatt_jobb", "workop_nr"])
+    jobb["stack_idx"] = jobb.groupby("fatt_jobb").cumcount()
+    max_stack = jobb["stack_idx"].max()
+
+    fig = go.Figure()
+    for i in range(max_stack + 1):
+        lag = jobb[jobb["stack_idx"] == i]
+        dato_str = lag["dato"].dt.strftime("%d.%m.%Y").fillna("—").tolist()
+        customdata = list(zip(
+            lag["workop_nr"].tolist(),
+            lag["nav_kontor"].fillna("—").tolist(),
+            dato_str,
+            lag["oppmotte"].fillna(0).astype(int).tolist(),
+            lag["fatt_jobb"].astype(int).tolist(),
+            lag["andel_fatt_jobb"].tolist(),
+        ))
+        fig.add_trace(
+            go.Bar(
+                x=lag["fatt_jobb"].tolist(),
+                y=[1] * len(lag),
+                marker_color=FARGE_JOBB,
+                marker_line=dict(color="white", width=1),
+                opacity=0.85,
+                customdata=customdata,
+                hovertemplate=(
+                    "<b>WO %{customdata[0]}</b><br>"
+                    "Lokasjon: %{customdata[1]}<br>"
+                    "Dato: %{customdata[2]}<br>"
+                    "Oppmøtte: %{customdata[3]}<br>"
+                    "Fått jobb: %{x}<br>"
+                    "Andel: %{customdata[5]}<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+
+    fig.add_vline(
+        x=snitt,
+        line_dash="dash",
+        line_color=FARGE_OPPMOTTE,
+        line_width=2,
+        annotation_text=f"Snitt: {snitt:.1f}",
+        annotation_position="top right",
+        annotation_font_size=13,
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=f"Fordeling: antall som fikk jobb per WorkOp (n={len(jobb)})",
+        xaxis_title="Antall som fikk jobb",
+        yaxis_title="Antall WorkOp-er",
+        barmode="stack",
+        xaxis=dict(dtick=2),
+        yaxis=dict(dtick=1),
+        margin=_MARGIN,
+    )
+    return fig
+
+
 def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
     """
     Stablet søylediagram med programvekst over tid — kvartalsvis aggregering.
