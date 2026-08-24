@@ -7,4 +7,5 @@ dependencies = [
     "pandas>=2.2",
     "jupyter>=1.1",
     "jupytext>=1.16",
+    "openpyxl>=3.1",
 ]

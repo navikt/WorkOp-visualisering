@@ -32,6 +32,9 @@ oppdater-quarto dir:
     curl -X PUT "${files[@]}" "https://data.nav.no/quarto/update/{{ quarto_id }}" \
         -H "Authorization: Bearer ${TEAM_TOKEN}"
 
+diff-xlsx-csv:
+    cd notebooks && uv run python xlsx_csv_diff.py
+
 # Oppdaterer pakker med uv
 update:
     uv lock --upgrade
