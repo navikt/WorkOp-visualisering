@@ -28,9 +28,8 @@ teal = ("#f0f8ff", "#368DA8", "#368DA8")
 oransje = ("#fff8f0", "#C77300", "#C77300")
 ```
 
-## Ytelser blant de som fikk jobb
+## Ytelser blant de som fikk jobb (data fra 45 WorkOp-er)
 
-Data fra 45 WorkOp-er.
 
 ```{python}
 #| echo: false
@@ -53,21 +52,21 @@ snitt_jobb_fmt = f"{snitt_jobb:.1f}"
 
 html = f"""
 <div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1rem 0 1.5rem 0;">
-  {_boks(f"{sum_ytelser_mill} mill kr", "Sum årlige ytelser før jobb", *oransje)}
-  {_boks(f"{ytelse_per_person_tusen} 000 kr", "Estimert ytelse spart per person i jobb", *oransje)}
+  {_boks(f"{sum_ytelser_mill} mill kr", "Sum årlige statlige ytelser før jobb", *oransje)}
+  {_boks(f"{ytelse_per_person_tusen} 000 kr", "Estimert statlige ytelse spart per person i jobb", *oransje)}
 </div>
 """
 HTML(html)
 ```
 
-De som fikk jobb gjennom WorkOp mottok til sammen `{python} sum_ytelser_mill` mill kr
-i årlige ytelser fra Nav før de kom i jobb. Dette inkluderer AAP, sosialhjelp
-og andre ytelser. Med snitt `{python} snitt_jobb_fmt` som fikk jobb per WorkOp gir det
-et estimat på `{python} ytelse_per_person_tusen` 000 kr spart per person i jobb.
+De som fikk jobb gjennom WorkOp mottok til sammen `{python} sum_ytelser_mill` mill kr i årlige statlige ytelser fra Nav før de kom i jobb, som typisk er AAP.
+Utbetalte kommunale ytelser (sosialhjelp) er ikke kartlagt godt nok.
+Med snitt `{python} snitt_jobb_fmt` som fikk jobb per WorkOp gir det et estimat på `{python} ytelse_per_person_tusen` 000 kr spart per person i jobb.
+**OBS! Disse tallene er ikke rapporteringsverdige, kun for å gi et bilde av omfanget.**
 
-## Utenforskap
+## Utenforskap (data fra 26 WorkOp-er)
 
-Data fra 26 WorkOp-er (283 som fikk jobb).
+Data fra 26 WorkOp-er, hvor 283 fikk jobb.
 
 ```{python}
 #| echo: false
@@ -122,5 +121,4 @@ html = f"""
 HTML(html)
 ```
 
-Blant deltakere omfattet av ungdomsgarantien (16–30 år) fikk `{python} andel_ug_fmt`
-jobb — en høyere andel enn totalgjennomsnittet.
+**Tallene her viser at WorkOp er en arena som gir unge i ungdomsgarantien en reell mulighet til å komme i jobb.**
