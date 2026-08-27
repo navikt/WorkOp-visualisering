@@ -16,8 +16,21 @@ Bruk:
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pandas as pd
 import plotly.graph_objects as go
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_palett_raw = json.loads((_REPO_ROOT / "palett.json").read_text())
+PALETT = {k: v["hex"] for k, v in _palett_raw.items()}
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    """Konverter hex til rgba-streng for Plotly."""
+    r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+    return f"rgba({r}, {g}, {b}, {alpha})"
 
 
 # Antall faktiske Nav-kontorer per lokasjon (der samarbeid gir >1)
@@ -58,17 +71,15 @@ def tabell_per_kontor(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Fargepalett (Nav-inspirert, tilgjengelig)
+# Fargepalett (Nav Ung — se palett.json og README)
 # ---------------------------------------------------------------------------
-FARGE_OPPMOTTE = "#0067C5"  # Nav-blå
-FARGE_JOBB = "#06893A"  # Nav-grønn
-FARGE_ESTIMAT = "#C77300"  # Oransje (fremskrivning)
-FARGE_HISTORISK = "#0067C5"
+FARGE_OPPMOTTE = PALETT["Mellom Grønn"]
+FARGE_JOBB = PALETT["Mellom Blå"]
+FARGE_ESTIMAT = PALETT["Oransj"]
 
-FARGE_NEDSATT = "#368DA8"
-FARGE_VEILEDNING = "#83C3D7"
-FARGE_GODE = "#B3DCE8"
-FARGE_TILTAK = "#005B82"
+FARGE_NEDSATT = PALETT["Mellom Blå"]
+FARGE_VEILEDNING = PALETT["Mellom Lilla"]
+FARGE_GODE = PALETT["Mellom Turkis"]
 
 PLOTLY_TEMPLATE = "plotly_white"
 
@@ -78,8 +89,8 @@ _MARGIN = dict(t=70, b=80)
 _FARGE_UKJENT = "#AAAAAA"
 
 
-def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
-    """Horisontalt søylediagram: totalt antall som fikk jobb per innsatsgruppe."""
+def _beregn_innsatsgrupper(df: pd.DataFrame) -> tuple[list[str], list[float], list[str], int]:
+    """Felles beregning av innsatsgruppe-verdier for gjenbruk i flere plott."""
     aktive = df[df["har_data"]].copy()
 
     nedsatt = aktive["fatt_jobb_nedsatt"].sum()
@@ -87,10 +98,17 @@ def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
     gode = aktive["fatt_jobb_gode"].sum()
     kjent_sum = aktive[["fatt_jobb_nedsatt", "fatt_jobb_veiledning", "fatt_jobb_gode"]].sum(axis=1)
     ukjent = (aktive["fatt_jobb"] - kjent_sum).clip(lower=0).sum()
+    totalt = int(aktive["fatt_jobb"].sum())
 
     kategorier = ["Trenger veiledning", "Nedsatt arbeidsevne", "Gode muligheter", "Ukjent"]
     verdier = [veiledning, nedsatt, gode, ukjent]
     farger = [FARGE_VEILEDNING, FARGE_NEDSATT, FARGE_GODE, _FARGE_UKJENT]
+    return kategorier, verdier, farger, totalt
+
+
+def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
+    """Horisontalt søylediagram: totalt antall som fikk jobb per innsatsgruppe."""
+    kategorier, verdier, farger, totalt = _beregn_innsatsgrupper(df)
 
     fig = go.Figure(
         go.Bar(
@@ -103,7 +121,6 @@ def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
             hovertemplate="%{y}: %{x:.0f} personer<extra></extra>",
         )
     )
-    totalt = int(aktive["fatt_jobb"].sum())
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title=f"Innsatsgrupper blant de som fikk jobb (n={totalt})",
@@ -113,6 +130,32 @@ def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
         margin=dict(t=70, b=50, l=180, r=60),
         xaxis_range=[0, max(verdier) * 1.15],
     )
+    return fig
+
+
+def fig_innsatsgrupper_kake(df: pd.DataFrame) -> go.Figure:
+    """Kakediagram: fordeling av innsatsgrupper blant de som fikk jobb."""
+    kategorier, verdier, farger, totalt = _beregn_innsatsgrupper(df)
+
+    fig = go.Figure(
+        go.Pie(
+            labels=kategorier,
+            values=verdier,
+            marker=dict(colors=farger),
+            textinfo="label+percent",
+            textposition="outside",
+            texttemplate="<b>%{label}: %{percent}</b>",
+            hovertemplate="%{label}: %{value:.0f} personer (%{percent})<extra></extra>",
+            sort=False,
+        )
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=f"Fordeling av innsatsgrupper blant de som fikk jobb (n={totalt})",
+        showlegend=False,
+        margin=dict(t=70, b=50, l=60, r=60),
+    )
+    fig.update_traces(marker=dict(line=dict(color='#FFFFFF', width=2)))
     return fig
 
 
@@ -217,7 +260,7 @@ def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
         go.Bar(
             x=labels,
             y=kvartalsvis["fatt_jobb"].tolist(),
-            name="Fikk jobb",
+            name="Oppmøtte som fikk jobb",
             marker_color=FARGE_JOBB,
             customdata=customdata,
             hovertemplate=(
@@ -231,9 +274,8 @@ def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
         go.Bar(
             x=labels,
             y=ikke_jobb,
-            name="Oppmøtte uten jobb",
+            name="Oppmøtte som ikke fikk jobb",
             marker_color=FARGE_OPPMOTTE,
-            opacity=0.5,
             customdata=customdata,
             hovertemplate=(
                 "<b>%{x}</b><br>%{customdata[0]} WorkOps — %{customdata[1]} oppmøtte<br>Uten jobb: %{y}<extra></extra>"
@@ -271,7 +313,7 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
             mode="lines+markers",
             name="Kumulativt oppmøtte",
             fill="tonexty",
-            fillcolor="rgba(0, 103, 197, 0.1)",
+            fillcolor=_rgba(FARGE_OPPMOTTE, 0.15),
             line=dict(color=FARGE_OPPMOTTE, width=2),
         )
     )
@@ -282,7 +324,7 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
             mode="lines+markers",
             name="Kumulativt fikk jobb",
             fill="tozeroy",
-            fillcolor="rgba(6, 137, 58, 0.2)",
+            fillcolor=_rgba(FARGE_JOBB, 0.2),
             line=dict(color=FARGE_JOBB, width=2),
         )
     )
@@ -303,20 +345,11 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
 
 # Fargepalett for kategoriske bransjer
 _FARGE_BRANSJE = [
-    "#0067C5",
-    "#06893A",
-    "#C77300",
-    "#7B3F9E",
-    "#D62728",
-    "#8C564B",
-    "#E377C2",
-    "#17BECF",
-    "#BCBD22",
-    "#7F7F7F",
-    "#1F77B4",
-    "#FF7F0E",
-    "#2CA02C",
-    "#9467BD",
+    PALETT["Lilla"],
+    PALETT["Rød"],
+    PALETT["Blå"],
+    PALETT["Turkis"],
+    PALETT["Oransj"],
 ]
 
 _STORRELSE_ORDEN = ["Mikro\n(<10)", "Liten\n(10–49)", "Medium\n(50–249)", "Stor\n(≥250)"]
@@ -326,7 +359,7 @@ _STORRELSE_MAP = {
     "Medium": "Medium\n(50–249)",
     "Stor": "Stor\n(≥250)",
 }
-_STORRELSE_FARGER = [FARGE_OPPMOTTE, FARGE_JOBB, FARGE_ESTIMAT, "#7B3F9E"]
+_STORRELSE_FARGER = [PALETT["Lilla"], PALETT["Blå"], PALETT["Turkis"], PALETT["Oransj"]]
 
 
 def fig_bransje(df_ag: pd.DataFrame) -> go.Figure:

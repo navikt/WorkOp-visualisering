@@ -16,7 +16,7 @@ import datetime
 
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, snitt_fra_data
-from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_histogram_jobb, tabell_per_kontor, antall_unike_kontorer
+from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, tabell_per_kontor, antall_unike_kontorer
 
 df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
@@ -52,9 +52,9 @@ def _boks(verdi, tekst, bg, border, farge):
         f'<div style="color:#555;">{tekst}</div></div>'
     )
 
-blaa = ("#f0f8ff", "#0067C5", "#0067C5")
-gronn = ("#f0fff4", "#06893A", "#06893A")
-teal = ("#f0f8ff", "#368DA8", "#368DA8")
+blaa = ("#E9F9FF", "#00BDFF", "#004A6B")
+gronn = ("#E7FFEC", "#11FF42", "#0A6B20")
+teal = ("#F7EEFF", "#A444FD", "#5A2299")
 
 html = f"""
 <div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1.5rem 0;">
@@ -106,6 +106,11 @@ fig_histogram_jobb(df).show()
 ```{python}
 #| echo: false
 fig_innsatsgrupper_totalt(df).show()
+```
+
+```{python}
+#| echo: false
+fig_innsatsgrupper_kake(df).show()
 ```
 
 Ukjent innsatsgruppe er der delkategoriene ikke summerer til totalen —

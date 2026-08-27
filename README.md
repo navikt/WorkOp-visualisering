@@ -2,8 +2,15 @@
 
 Se datafortellingen på datamarkedsplassen: https://data.ansatt.nav.no/quarto/a191ebb5-1c8d-4d42-ac01-6740c3425c86/index.html
 
-Visualiseringer av WorkOp-programmet ved Nav. Data samles inn via to Microsoft
-Forms-undersøkelser og lastes ned som CSV-filer.
+## Hvorfor gjøre datainnsamling
+
+Datainnsamling gir et grunnlag for å få oversikt over gjennomføring og resultater fra WorkOp-arrangementene.
+Den første datainnsamlingen ble brukt som grunnlag for nasjonal oppskalering av konseptet.
+Tall på gjennomføringene gir også mulighet til å lære og så justere konseptet fortløpende.
+Overfor ledelsen kan oversikten brukes til forankring og prioritering, slik at beslutninger om å fortsette eller justere WorkOp-konseptet kan tas på et informert grunnlag.
+
+På sikt skal det være mulig for fylkene og kontorene å følge sin egen utvikling og resultater over tid.
+
 
 ## Datafangst
 
@@ -64,3 +71,9 @@ Fremskrivningen bruker parametere i `src/workop/transform.py`:
 │   └── eksperimentering.py  # Jupytext-sandkasse
 └── justfile             # Vanlige kommandoer
 ```
+
+
+## Palett
+
+Paletten er fra team Nav Ung, og finnes i sin helhet i `palett.json`.
+Her brukes lilla, blå, turkis og grønn som hovedfarger i plott, mens rød og oransje brukes for ekstra kontrast.
