@@ -75,7 +75,7 @@ def tabell_per_kontor(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 FARGE_OPPMOTTE = PALETT["Mellom Grønn"]
 FARGE_JOBB = PALETT["Mellom Blå"]
-FARGE_ESTIMAT = PALETT["Oransj"]
+FARGE_ESTIMAT = PALETT["Mellom Lilla"]
 FARGE_OPPMOTTE_STERK = PALETT["Grønn"]
 FARGE_JOBB_STERK = PALETT["Blå"]
 
