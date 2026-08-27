@@ -84,8 +84,8 @@ FARGE_GODE = PALETT["Mellom Turkis"]
 PLOTLY_TEMPLATE = "plotly_white"
 
 # Legend nederst og toppmargin for lang tittel — unngår overlapp med Plotly-toolbar
-_LEGEND_BUNN = dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5)
-_MARGIN = dict(t=70, b=80)
+_LEGEND_BUNN = {"orientation": "h", "yanchor": "top", "y": -0.18, "xanchor": "center", "x": 0.5}
+_MARGIN = {"t": 70, "b": 80}
 _FARGE_UKJENT = "#AAAAAA"
 
 
@@ -108,7 +108,7 @@ def _beregn_innsatsgrupper(df: pd.DataFrame) -> tuple[list[str], list[float], li
 
 def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
     """Horisontalt søylediagram: totalt antall som fikk jobb per innsatsgruppe."""
-    kategorier, verdier, farger, totalt = _beregn_innsatsgrupper(df)
+    kategorier, verdier, farger, _ = _beregn_innsatsgrupper(df)
 
     fig = go.Figure(
         go.Bar(
@@ -123,11 +123,11 @@ def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
     )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
-        title=f"Innsatsgrupper blant de som fikk jobb (n={totalt})",
+        title="Innsatsgrupper blant de som fikk jobb",
         xaxis_title="Antall personer",
         yaxis_title=None,
         showlegend=False,
-        margin=dict(t=70, b=50, l=180, r=60),
+        margin={"t": 70, "b": 50, "l": 180, "r": 60},
         xaxis_range=[0, max(verdier) * 1.15],
     )
     return fig
@@ -135,13 +135,13 @@ def fig_innsatsgrupper_totalt(df: pd.DataFrame) -> go.Figure:
 
 def fig_innsatsgrupper_kake(df: pd.DataFrame) -> go.Figure:
     """Kakediagram: fordeling av innsatsgrupper blant de som fikk jobb."""
-    kategorier, verdier, farger, totalt = _beregn_innsatsgrupper(df)
+    kategorier, verdier, farger, _ = _beregn_innsatsgrupper(df)
 
     fig = go.Figure(
         go.Pie(
             labels=kategorier,
             values=verdier,
-            marker=dict(colors=farger),
+            marker={"colors": farger},
             textinfo="label+percent",
             textposition="outside",
             texttemplate="<b>%{label}: %{percent}</b>",
@@ -151,11 +151,11 @@ def fig_innsatsgrupper_kake(df: pd.DataFrame) -> go.Figure:
     )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
-        title=f"Fordeling av innsatsgrupper blant de som fikk jobb (n={totalt})",
+        title="Fordeling av innsatsgrupper blant de som fikk jobb",
         showlegend=False,
-        margin=dict(t=70, b=50, l=60, r=60),
+        margin={"t": 70, "b": 50, "l": 60, "r": 60},
     )
-    fig.update_traces(marker=dict(line=dict(color='#FFFFFF', width=2)))
+    fig.update_traces(marker={"line": {"color": "#FFFFFF", "width": 2}})
     return fig
 
 
@@ -189,7 +189,7 @@ def fig_histogram_jobb(df: pd.DataFrame) -> go.Figure:
                 x=lag["fatt_jobb"].tolist(),
                 y=[1] * len(lag),
                 marker_color=FARGE_JOBB,
-                marker_line=dict(color="white", width=1),
+                marker_line={"color": "white", "width": 1},
                 opacity=0.85,
                 customdata=customdata,
                 hovertemplate=(
@@ -215,12 +215,12 @@ def fig_histogram_jobb(df: pd.DataFrame) -> go.Figure:
     )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
-        title=f"Fordeling: antall som fikk jobb per WorkOp (n={len(jobb)})",
+        title="Fordeling: antall som fikk jobb per WorkOp",
         xaxis_title="Antall som fikk jobb",
         yaxis_title="Antall WorkOp-er",
         barmode="stack",
-        xaxis=dict(dtick=2),
-        yaxis=dict(dtick=1),
+        xaxis={"dtick": 2},
+        yaxis={"dtick": 1},
         margin=_MARGIN,
     )
     return fig
@@ -249,7 +249,7 @@ def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
     kvartalsvis = kvartalsvis.set_index("kvartal").reindex(alle_kvartaler, fill_value=0).reset_index()
     kvartalsvis.columns = ["kvartal", "oppmotte", "fatt_jobb", "antall"]
 
-    labels = kvartalsvis["kvartal"].map(lambda p: f"Q{p.quarter} {p.year}").tolist()
+    labels = kvartalsvis["kvartal"].map(lambda p: f"Q{p.quarter} {p.year}").tolist() # type: ignore
     ikke_jobb = (kvartalsvis["oppmotte"] - kvartalsvis["fatt_jobb"]).tolist()
     customdata = list(zip(kvartalsvis["antall"].tolist(), kvartalsvis["oppmotte"].tolist()))
 
@@ -314,7 +314,7 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
             name="Kumulativt oppmøtte",
             fill="tonexty",
             fillcolor=_rgba(FARGE_OPPMOTTE, 0.15),
-            line=dict(color=FARGE_OPPMOTTE, width=2),
+            line={"color": FARGE_OPPMOTTE, "width": 2},
         )
     )
     fig.add_trace(
@@ -325,7 +325,7 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
             name="Kumulativt fikk jobb",
             fill="tozeroy",
             fillcolor=_rgba(FARGE_JOBB, 0.2),
-            line=dict(color=FARGE_JOBB, width=2),
+            line={"color": FARGE_JOBB, "width": 2},
         )
     )
     fig.update_layout(
@@ -369,9 +369,7 @@ def fig_bransje(df_ag: pd.DataFrame) -> go.Figure:
     Sortert høyest antall øverst. Viser bare rader med kjent bransje.
     Dekning (n med bransje / n totalt) vises i tittelen.
     """
-    n_total = len(df_ag)
     med_bransje = df_ag[df_ag["bransje"].notna()].copy()
-    n_med = len(med_bransje)
 
     grp = (
         med_bransje.groupby("bransje")
@@ -395,10 +393,10 @@ def fig_bransje(df_ag: pd.DataFrame) -> go.Figure:
     )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
-        title=f"Bransjefordeling blant arbeidsgivere (n={n_med} av {n_total} med kjent bransje)",
+        title="Bransjefordeling blant arbeidsgivere",
         xaxis_title="Antall arbeidsgiverbesøk",
         yaxis_title=None,
-        margin=dict(t=70, b=50, l=210, r=60),
+        margin={"t": 70, "b": 50, "l": 210, "r": 60},
         height=max(400, len(grp) * 32 + 100),
     )
     return fig
@@ -411,9 +409,7 @@ def fig_bedriftsstorrelse(df_ag: pd.DataFrame) -> go.Figure:
     Mikro (<10) / Liten (10–49) / Medium (50–249) / Stor (≥250).
     Dekning (n med antall_ansatte / n totalt) vises i tittelen.
     """
-    n_total = len(df_ag)
     med_storrelse = df_ag[df_ag["storrelse"].notna()].copy()
-    n_med = len(med_storrelse)
 
     med_storrelse = med_storrelse.copy()
     med_storrelse["storrelse_label"] = med_storrelse["storrelse"].map(_STORRELSE_MAP)
@@ -433,8 +429,8 @@ def fig_bedriftsstorrelse(df_ag: pd.DataFrame) -> go.Figure:
     )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
-        title=(f"Bedriftsstørrelse — <sub>{n_med} av {n_total} bedrifter er registrert med antall ansatte</sub>"),
-        xaxis_title="Størrelsesbøtte",
+        title="Bedriftsstørrelse",
+        xaxis_title="Størrelsesbøtte (obs, ikke alle bedrifters størrelser er kjent)",
         yaxis_title="Antall arbeidsgivere",
         showlegend=False,
         margin=_MARGIN,
@@ -492,9 +488,9 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
                 marker_color=FARGE_ESTIMAT,
                 marker_pattern_shape="/",
                 opacity=0.7,
-                error_y=dict(
-                    type="data",
-                    array=[
+                error_y={
+                    "type": "data",
+                    "array": [
                         (hi - fakt - rest)
                         for hi, fakt, rest in zip(
                             delvis["ci_hi"].tolist(),
@@ -502,7 +498,7 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
                             delvis["est_rest"].tolist(),
                         )
                     ],
-                    arrayminus=[
+                    "arrayminus": [
                         (fakt + rest - lo)
                         for lo, fakt, rest in zip(
                             delvis["ci_lo"].tolist(),
@@ -510,9 +506,9 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
                             delvis["est_rest"].tolist(),
                         )
                     ],
-                    visible=True,
-                    color="#555555",
-                ),
+                    "visible": True,
+                    "color": "#555555",
+                },
                 hovertemplate=(
                     "År %{x}<br>"
                     "Gjenstående estimat: %{y:.0f}<br>"
@@ -542,13 +538,13 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
                 marker_color=FARGE_ESTIMAT,
                 marker_pattern_shape="/",
                 opacity=0.7,
-                error_y=dict(
-                    type="data",
-                    array=[hi - est for hi, est in zip(ci_hi, est_jobb)],
-                    arrayminus=[est - lo for lo, est in zip(ci_lo, est_jobb)],
-                    visible=True,
-                    color="#555555",
-                ),
+                error_y={
+                    "type": "data",
+                    "array": [hi - est for hi, est in zip(ci_hi, est_jobb)],
+                    "arrayminus": [est - lo for lo, est in zip(ci_lo, est_jobb)],
+                    "visible": True,
+                    "color": "#555555",
+                },
                 hovertemplate=(
                     "År %{x} (estimat)<br>"
                     "Sentralestimat: %{y:.0f}<br>"
@@ -561,7 +557,7 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title="Estimert antall som får jobb med 95 % konfidensintervall (bootstrap)",
-        xaxis=dict(title="År", type="category"),
+        xaxis={"title": "År", "type": "category"},
         yaxis_title="Antall personer",
         barmode="stack",
         legend=_LEGEND_BUNN,
