@@ -76,6 +76,8 @@ def tabell_per_kontor(df: pd.DataFrame) -> pd.DataFrame:
 FARGE_OPPMOTTE = PALETT["Mellom Grønn"]
 FARGE_JOBB = PALETT["Mellom Blå"]
 FARGE_ESTIMAT = PALETT["Oransj"]
+FARGE_OPPMOTTE_STERK = PALETT["Grønn"]
+FARGE_JOBB_STERK = PALETT["Blå"]
 
 FARGE_NEDSATT = PALETT["Mellom Blå"]
 FARGE_VEILEDNING = PALETT["Mellom Lilla"]
@@ -313,8 +315,8 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
             mode="lines+markers",
             name="Kumulativt oppmøtte",
             fill="tonexty",
-            fillcolor=_rgba(FARGE_OPPMOTTE, 0.15),
-            line={"color": FARGE_OPPMOTTE, "width": 2},
+            fillcolor=_rgba(FARGE_OPPMOTTE, 0.6),
+            line={"color": FARGE_OPPMOTTE_STERK, "width": 3},
         )
     )
     fig.add_trace(
@@ -324,8 +326,8 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
             mode="lines+markers",
             name="Kumulativt fikk jobb",
             fill="tozeroy",
-            fillcolor=_rgba(FARGE_JOBB, 0.2),
-            line={"color": FARGE_JOBB, "width": 2},
+            fillcolor=_rgba(FARGE_JOBB, 0.6),
+            line={"color": FARGE_JOBB_STERK, "width": 3},
         )
     )
     fig.update_layout(
