@@ -16,7 +16,7 @@ import datetime
 
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, snitt_fra_data
-from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, tabell_per_kontor, antall_unike_kontorer
+from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, fig_histogram_bedrifter, fig_histogram_deltakere, tabell_per_kontor, antall_unike_kontorer
 
 df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
@@ -99,6 +99,20 @@ fig_kumulativ(df).show()
 ```{python}
 #| echo: false
 fig_histogram_jobb(df).show()
+```
+
+## Fordeling: antall bedrifter per WorkOp
+
+```{python}
+#| echo: false
+fig_histogram_bedrifter(df).show()
+```
+
+## Fordeling: deltakere på forberedende og oppmøtte
+
+```{python}
+#| echo: false
+fig_histogram_deltakere(df).show()
 ```
 
 ## Innsatsgrupper blant de som fikk jobb

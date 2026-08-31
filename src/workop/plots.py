@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _palett_raw = json.loads((_REPO_ROOT / "palett.json").read_text())
@@ -161,6 +162,78 @@ def fig_innsatsgrupper_kake(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def _stacked_wo_histogram(
+    df: pd.DataFrame,
+    kolonne: str,
+    farge: str,
+    snitt_farge: str,
+    tittel: str,
+    x_tittel: str,
+    hover_felt_label: str,
+    extra_cols: list[str] | None = None,
+    extra_hover: str = "",
+) -> go.Figure:
+    """Felles logikk for stablede WO-segment-histogrammer."""
+    aktive = df[df["har_data"]].copy()
+    cols = ["workop_nr", kolonne, "nav_kontor", "dato"] + (extra_cols or [])
+    data = aktive[cols].dropna(subset=[kolonne]).copy()
+    data[kolonne] = data[kolonne].astype(int)
+    snitt = data[kolonne].mean()
+
+    data = data.sort_values([kolonne, "workop_nr"])
+    data["stack_idx"] = data.groupby(kolonne).cumcount()
+    max_stack = data["stack_idx"].max()
+
+    fig = go.Figure()
+    for i in range(max_stack + 1):
+        lag = data[data["stack_idx"] == i]
+        dato_str = lag["dato"].dt.strftime("%d.%m.%Y").fillna("—").tolist()
+        customdata = list(zip(
+            lag["workop_nr"].tolist(),
+            lag["nav_kontor"].fillna("—").tolist(),
+            dato_str,
+            lag[kolonne].tolist(),
+        ))
+        fig.add_trace(
+            go.Bar(
+                x=lag[kolonne].tolist(),
+                y=[1] * len(lag),
+                marker_color=farge,
+                marker_line={"color": "white", "width": 1},
+                opacity=0.85,
+                customdata=customdata,
+                hovertemplate=(
+                    f"<b>WO %{{customdata[0]}}</b><br>"
+                    f"Lokasjon: %{{customdata[1]}}<br>"
+                    f"Dato: %{{customdata[2]}}<br>"
+                    f"{hover_felt_label}: %{{x}}{extra_hover}<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+
+    fig.add_vline(
+        x=snitt,
+        line_dash="dash",
+        line_color=snitt_farge,
+        line_width=2,
+        annotation_text=f"Snitt: {snitt:.1f}",
+        annotation_position="top right",
+        annotation_font_size=13,
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=tittel,
+        xaxis_title=x_tittel,
+        yaxis_title="Antall WorkOp-er",
+        barmode="stack",
+        xaxis={"dtick": 1},
+        yaxis={"dtick": 1},
+        margin=_MARGIN,
+    )
+    return fig
+
+
 def fig_histogram_jobb(df: pd.DataFrame) -> go.Figure:
     """Stablet søylediagram: hver WorkOp er et segment, gruppert per fatt_jobb-verdi."""
     aktive = df[df["har_data"]].copy()
@@ -224,6 +297,82 @@ def fig_histogram_jobb(df: pd.DataFrame) -> go.Figure:
         xaxis={"dtick": 2},
         yaxis={"dtick": 1},
         margin=_MARGIN,
+    )
+    return fig
+
+
+def fig_histogram_bedrifter(df: pd.DataFrame) -> go.Figure:
+    """Stablet søylediagram: hver WorkOp er et segment, gruppert per antall bedrifter."""
+    return _stacked_wo_histogram(
+        df,
+        kolonne="arbeidsgivere",
+        farge=PALETT["Oransj"],
+        snitt_farge=PALETT["Rød"],
+        tittel="Fordeling: antall bedrifter per WorkOp",
+        x_tittel="Antall bedrifter",
+        hover_felt_label="Bedrifter",
+    )
+
+
+def fig_histogram_deltakere(df: pd.DataFrame) -> go.Figure:
+    """To side-om-side subplott: fordeling av oppmøtte til forberedende og til WorkOp."""
+    aktive = df[df["har_data"]].copy()
+    forberedende = aktive["oppmotte_forberedende"].dropna().astype(int)
+    oppmotte = aktive["oppmotte"].astype(int)
+
+    snitt_f = forberedende.mean()
+    snitt_o = oppmotte.mean()
+
+    x_min = min(forberedende.min(), oppmotte.min())
+    x_max = max(forberedende.max(), oppmotte.max())
+    bins = {"start": x_min - 0.5, "end": x_max + 0.5, "size": 1}
+
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=[
+            "Forberedende workshop",
+            "WorkOp",
+        ],
+        shared_yaxes=True,
+    )
+
+    fig.add_trace(
+        go.Histogram(
+            x=forberedende.tolist(),
+            xbins=bins,
+            marker_color=PALETT["Lilla"],
+            opacity=0.85,
+            showlegend=False,
+            hovertemplate="Forberedende: %{x} deltakere<br>Antall ganger: %{y}<extra></extra>",
+        ),
+        row=1, col=1,
+    )
+    fig.add_trace(
+        go.Histogram(
+            x=oppmotte.tolist(),
+            xbins=bins,
+            marker_color=PALETT["Blå"],
+            opacity=0.85,
+            showlegend=False,
+            hovertemplate="WorkOp: %{x} deltakere<br>Antall ganger: %{y}<extra></extra>",
+        ),
+        row=1, col=2,
+    )
+
+    fig.add_vline(x=snitt_f, line_dash="dash", line_color=PALETT["Lilla"], line_width=2,
+                  annotation_text=f"Snitt: {snitt_f:.1f}", annotation_position="top right",
+                  annotation_font_size=12, row=1, col=1) # type: ignore
+    fig.add_vline(x=snitt_o, line_dash="dash", line_color=PALETT["Blå"], line_width=2,
+                  annotation_text=f"Snitt: {snitt_o:.1f}", annotation_position="top right",
+                  annotation_font_size=12, row=1, col=2) # type: ignore
+
+    fig.update_xaxes(dtick=2, title_text="Antall deltakere")
+    fig.update_yaxes(dtick=1, title_text="Antall ganger", col=1)
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Deltakere på forberedende workshop og på WorkOp",
+        margin={**_MARGIN, "t": 100},
     )
     return fig
 
@@ -298,12 +447,16 @@ def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
 
 
 def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
-    """Kumulativ sum oppmøtte og fått jobb over alle arrangement, sortert på dato."""
+    """Kumulativ sum oppmøtte og fått jobb over alle arrangement, sortert på dato.
+
+    Viser også en mållinje: kumulativt antall arbeidsgivere (mål = 1 jobb per bedrift).
+    """
     aktive = df[df["har_data"]].copy()
     aktive = aktive.sort_values("dato")
 
     aktive["kumulativ_oppmotte"] = aktive["oppmotte"].cumsum()
     aktive["kumulativ_fatt_jobb"] = aktive["fatt_jobb"].cumsum()
+    aktive["kumulativ_maal"] = aktive["arbeidsgivere"].cumsum()
 
     x = aktive["dato"].dt.strftime("%Y-%m-%d").where(aktive["dato"].notna(), None).tolist()
 
@@ -330,6 +483,16 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
             line={"color": FARGE_JOBB_STERK, "width": 3},
         )
     )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=aktive["kumulativ_maal"].tolist(),
+            mode="lines",
+            name="Mål (1 per bedrift)",
+            line={"color": PALETT["Mellom Lilla"], "width": 2},
+            hovertemplate="Mål: %{y} (1 per bedrift)<extra></extra>",
+        )
+    )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title="Kumulativt antall deltakere og jobbplasseringer",
@@ -337,6 +500,7 @@ def fig_kumulativ(df: pd.DataFrame) -> go.Figure:
         yaxis_title="Antall (kumulativt)",
         legend=_LEGEND_BUNN,
         margin=_MARGIN,
+        # legend_traceorder="reversed",
     )
     return fig
 
@@ -488,7 +652,7 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
                 y=delvis["est_rest"].tolist(),
                 name="Gjenstående (estimat)",
                 marker_color=FARGE_ESTIMAT,
-                marker_pattern_shape="/",
+                marker_pattern_shape=".",
                 opacity=0.7,
                 error_y={
                     "type": "data",
@@ -558,7 +722,7 @@ def fig_jobb_usikkerhet(bootstrap_df: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
-        title="Estimert antall som får jobb med 95 % konfidensintervall (bootstrap)",
+        title="Estimert antall som får jobb med 95 % konfidensintervall",
         xaxis={"title": "År", "type": "category"},
         yaxis_title="Antall personer",
         barmode="stack",
