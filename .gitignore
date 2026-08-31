@@ -13,3 +13,6 @@ _extensions/
 
 # teamtoken for oppdatering av quarto
 .env.team-token
+
+# lagrede plott
+*.png

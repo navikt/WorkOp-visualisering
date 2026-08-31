@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -20,11 +20,11 @@
 # Eller åpne direkte i VS Code / JupyterLab.
 
 # %%
-import warnings
-warnings.filterwarnings("ignore")
-
 import sys
-sys.path.insert(0, "..")   # slik at 'src.workop' finnes når notebook kjøres fra notebooks/
+import warnings
+
+warnings.filterwarnings("ignore")
+sys.path.insert(0, "..")  # slik at 'src.workop' finnes når notebook kjøres fra notebooks/
 
 # %% [markdown]
 # ## Steg 1: Les data fra Forms CSV
@@ -98,4 +98,31 @@ total_jobb = aktive["fatt_jobb"].sum()
 total_oppmotte = aktive["oppmotte"].sum()
 print(f"Totalt fikk jobb:   {total_jobb:.0f}")
 print(f"Totalt oppmøtte:    {total_oppmotte:.0f}")
-print(f"Historisk jobbrate: {total_jobb/total_oppmotte:.1%}")
+print(f"Historisk jobbrate: {total_jobb / total_oppmotte:.1%}")
+
+
+# %%
+
+
+def oppdater_layout_til_lagring(fig):
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={
+            "color": "black",
+            "family": "Source Sans Pro Bold, Source Sans Pro, Arial, sans-serif",
+            "size": 14,
+        },
+    )
+    return fig
+
+def lagre_fig(fig, filsti, scale = 4):
+    fig = oppdater_layout_til_lagring(fig)
+    fig.write_image(filsti+ ".png", scale=scale)
+    return filsti
+
+# %%
+
+f = fig_kumulativ(df)
+navn = "fig_kumulativ"
+lagre_fig(f, navn, 4)
