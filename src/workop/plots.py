@@ -301,6 +301,97 @@ def fig_histogram_jobb(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def fig_histogram_andel_jobb(df: pd.DataFrame, bin_storrelse: int = 5) -> go.Figure:
+    """Stablet søylediagram: hver WorkOp er et segment, gruppert per andel som fikk jobb.
+
+    Andelen rundes ned til nærmeste bin (default 5 %-poeng) og vises som «X–Y%»-labels.
+    """
+    aktive = df[df["har_data"]].copy()
+    data = aktive[["workop_nr", "fatt_jobb", "oppmotte", "nav_kontor", "dato"]].dropna(subset=["fatt_jobb"]).copy()
+    data["fatt_jobb"] = data["fatt_jobb"].astype(int)
+    data["andel"] = data["fatt_jobb"] / data["oppmotte"] * 100
+    data["bin"] = (data["andel"] // bin_storrelse * bin_storrelse).astype(int)
+
+    snitt_andel = data["andel"].mean()
+    snitt_bin = snitt_andel // bin_storrelse * bin_storrelse
+
+    alle_bins = list(range(0, int(data["bin"].max()) + bin_storrelse, bin_storrelse))
+    bin_labels = {b: f"{b}–{b + bin_storrelse}%" for b in alle_bins}
+
+    data = data.sort_values(["bin", "workop_nr"])
+    data["stack_idx"] = data.groupby("bin").cumcount()
+    max_stack = int(data["stack_idx"].max())
+
+    fig = go.Figure()
+    for i in range(max_stack + 1):
+        lag = data[data["stack_idx"] == i]
+        dato_str = lag["dato"].dt.strftime("%d.%m.%Y").fillna("—").tolist()
+        customdata = list(zip(
+            lag["workop_nr"].tolist(),
+            lag["nav_kontor"].fillna("—").tolist(),
+            dato_str,
+            lag["oppmotte"].fillna(0).astype(int).tolist(),
+            lag["fatt_jobb"].astype(int).tolist(),
+            lag["andel"].round(1).tolist(),
+        ))
+        x_labels = [bin_labels[b] for b in lag["bin"].tolist()]
+        fig.add_trace(
+            go.Bar(
+                x=x_labels,
+                y=[1] * len(lag),
+                marker_color=FARGE_JOBB,
+                marker_line={"color": "white", "width": 1},
+                opacity=0.85,
+                customdata=customdata,
+                hovertemplate=(
+                    "<b>WO %{customdata[0]}</b><br>"
+                    "Lokasjon: %{customdata[1]}<br>"
+                    "Dato: %{customdata[2]}<br>"
+                    "Oppmøtte: %{customdata[3]}<br>"
+                    "Fikk jobb: %{customdata[4]}<br>"
+                    "Andel: %{customdata[5]:.1f}%<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+
+    snitt_label = bin_labels[int(snitt_bin)]
+    # add_vline fungerer ikke på kategorisk x-akse — bruk scatter-trace i stedet
+    fig.add_trace(
+        go.Scatter(
+            x=[snitt_label, snitt_label],
+            y=[0, max(
+                sum(1 for tr in fig.data for bx in tr.x if bx == snitt_label) + 1, # type: ignore
+                2
+            )],
+            mode="lines",
+            line={"dash": "dash", "color": FARGE_OPPMOTTE, "width": 2},
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+    fig.add_annotation(
+        x=snitt_label,
+        y=1,
+        yref="paper",
+        text=f"Snitt: {snitt_andel:.1f}%",
+        showarrow=False,
+        xanchor="left",
+        font={"size": 13},
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Fordeling: andel som fikk jobb per WorkOp",
+        xaxis_title=f"Andel som fikk jobb ({bin_storrelse}%-bins)",
+        yaxis_title="Antall WorkOp-er",
+        barmode="stack",
+        xaxis={"categoryorder": "array", "categoryarray": [bin_labels[b] for b in alle_bins]},
+        yaxis={"dtick": 1},
+        margin=_MARGIN,
+    )
+    return fig
+
+
 def fig_histogram_bedrifter(df: pd.DataFrame) -> go.Figure:
     """Stablet søylediagram: hver WorkOp er et segment, gruppert per antall bedrifter."""
     return _stacked_wo_histogram(
@@ -314,67 +405,99 @@ def fig_histogram_bedrifter(df: pd.DataFrame) -> go.Figure:
     )
 
 
-def fig_histogram_deltakere(df: pd.DataFrame) -> go.Figure:
+def _stacked_subplot_traces(
+    data: pd.DataFrame,
+    kolonne: str,
+    farge: str,
+    hover_label: str,
+) -> tuple[list[go.Bar], float]:
+    """Bygg stablede go.Bar-traces for ett subplot med per-WO hover-info."""
+    data = data.sort_values([kolonne, "workop_nr"])
+    data["stack_idx"] = data.groupby(kolonne).cumcount()
+    max_stack = int(data["stack_idx"].max())
+    snitt = data[kolonne].mean()
+
+    traces = []
+    for i in range(max_stack + 1):
+        lag = data[data["stack_idx"] == i]
+        dato_str = lag["dato"].dt.strftime("%d.%m.%Y").fillna("—").tolist()
+        forberedende_str = lag["oppmotte_forberedende"].apply(
+            lambda v: str(int(v)) if pd.notna(v) else "—"
+        ).tolist()
+        customdata = list(zip(
+            lag["workop_nr"].tolist(),
+            lag["nav_kontor"].fillna("—").tolist(),
+            dato_str,
+            forberedende_str,
+            lag["oppmotte"].astype(int).tolist(),
+            lag["fatt_jobb"].fillna(0).astype(int).tolist(),
+        ))
+        traces.append(go.Bar(
+            x=lag[kolonne].tolist(),
+            y=[1] * len(lag),
+            marker_color=farge,
+            marker_line={"color": "white", "width": 1},
+            opacity=0.85,
+            customdata=customdata,
+            hovertemplate=(
+                "<b>WO %{customdata[0]}</b><br>"
+                "Forberedende: %{customdata[3]}<br>"
+                "Oppmøtte WorkOp: %{customdata[4]}<br>"
+                "Fikk jobb: %{customdata[5]}<br>"
+                "Lokasjon: %{customdata[1]}<br>"
+                "Dato: %{customdata[2]}<br>"
+            ),
+            showlegend=False,
+        ))
+    return traces, snitt
+
+
+def fig_histogram_deltakere(df: pd.DataFrame) -> tuple[go.Figure, str]:
     """To side-om-side subplott: fordeling av oppmøtte til forberedende og til WorkOp."""
     aktive = df[df["har_data"]].copy()
-    forberedende = aktive["oppmotte_forberedende"].dropna().astype(int)
-    oppmotte = aktive["oppmotte"].astype(int)
+    cols = ["workop_nr", "oppmotte_forberedende", "oppmotte", "nav_kontor", "dato", "fatt_jobb"]
 
-    snitt_f = forberedende.mean()
-    snitt_o = oppmotte.mean()
+    med_forberedende = aktive[cols].dropna(subset=["oppmotte_forberedende"]).copy()
+    med_forberedende["oppmotte_forberedende"] = med_forberedende["oppmotte_forberedende"].astype(int)
+    alle = aktive[cols].copy()
 
-    x_min = min(forberedende.min(), oppmotte.min())
-    x_max = max(forberedende.max(), oppmotte.max())
-    bins = {"start": x_min - 0.5, "end": x_max + 0.5, "size": 1}
+    traces_f, snitt_f = _stacked_subplot_traces(med_forberedende, "oppmotte_forberedende", PALETT["Lilla"], "Forberedende")
+    traces_o, snitt_o = _stacked_subplot_traces(alle, "oppmotte", PALETT["Blå"], "Oppmøtte WorkOp")
 
+    n_f = len(med_forberedende)
+    n_o = len(alle)
+    note = f"{n_o - n_f} WO-er mangler antall deltakere på forberedende workshop" if n_o > n_f else ""
 
     fig = make_subplots(
         rows=1, cols=2,
         subplot_titles=[
             "Forberedende workshop",
-            "WorkOp",
+            "Oppmøtte på WorkOp",
         ],
         shared_yaxes=True,
     )
 
-    fig.add_trace(
-        go.Histogram(
-            x=forberedende.tolist(),
-            xbins=bins,
-            marker_color=PALETT["Lilla"],
-            opacity=0.85,
-            showlegend=False,
-            hovertemplate="Forberedende: %{x} deltakere<br>Antall ganger: %{y}<extra></extra>",
-        ),
-        row=1, col=1,
-    )
-    fig.add_trace(
-        go.Histogram(
-            x=oppmotte.tolist(),
-            xbins=bins,
-            marker_color=PALETT["Blå"],
-            opacity=0.85,
-            showlegend=False,
-            hovertemplate="WorkOp: %{x} deltakere<br>Antall ganger: %{y}<extra></extra>",
-        ),
-        row=1, col=2,
-    )
+    for t in traces_f:
+        fig.add_trace(t, row=1, col=1)
+    for t in traces_o:
+        fig.add_trace(t, row=1, col=2)
 
     fig.add_vline(x=snitt_f, line_dash="dash", line_color=PALETT["Lilla"], line_width=2,
                   annotation_text=f"Snitt: {snitt_f:.1f}", annotation_position="top right",
-                  annotation_font_size=12, row=1, col=1) # type: ignore
+                  annotation_font_size=12, row=1, col=1)  # type: ignore
     fig.add_vline(x=snitt_o, line_dash="dash", line_color=PALETT["Blå"], line_width=2,
                   annotation_text=f"Snitt: {snitt_o:.1f}", annotation_position="top right",
-                  annotation_font_size=12, row=1, col=2) # type: ignore
+                  annotation_font_size=12, row=1, col=2)  # type: ignore
 
     fig.update_xaxes(dtick=2, title_text="Antall deltakere")
-    fig.update_yaxes(dtick=1, title_text="Antall ganger", col=1)
+    fig.update_yaxes(dtick=1, title_text="Antall WorkOp-er", col=1)
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title="Deltakere på forberedende workshop og på WorkOp",
+        barmode="stack",
         margin={**_MARGIN, "t": 100},
     )
-    return fig
+    return fig, note
 
 
 def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:

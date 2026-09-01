@@ -2,9 +2,6 @@
 title: "WorkOp — oversikt"
 ---
 
-**Kun for internt bruk i Nav direktoratet!**
-
-
 >Om datagrunnlaget: Datagrunnlaget til dette dashbordet er selvrapportert. Se nederst på siden for mer informasjon.
 
 ```{python}
@@ -16,7 +13,7 @@ import datetime
 
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, snitt_fra_data
-from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, fig_histogram_bedrifter, fig_histogram_deltakere, tabell_per_kontor, antall_unike_kontorer
+from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, fig_histogram_andel_jobb, fig_histogram_bedrifter, fig_histogram_deltakere, tabell_per_kontor, antall_unike_kontorer
 
 df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
@@ -101,6 +98,13 @@ fig_kumulativ(df).show()
 fig_histogram_jobb(df).show()
 ```
 
+## Fordeling: andel som fikk jobb per WorkOp
+
+```{python}
+#| echo: false
+fig_histogram_andel_jobb(df).show()
+```
+
 ## Fordeling: antall bedrifter per WorkOp
 
 ```{python}
@@ -112,7 +116,10 @@ fig_histogram_bedrifter(df).show()
 
 ```{python}
 #| echo: false
-fig_histogram_deltakere(df).show()
+
+figur_histogram_deltakere, notat = fig_histogram_deltakere(df)
+figur_histogram_deltakere.show()
+print(notat)
 ```
 
 ## Innsatsgrupper blant de som fikk jobb
@@ -166,3 +173,8 @@ Datagrunnlaget er todelt:
 - (2) For WorkOp-ene etter dette blir det samlet inn data via Microsoft Forms, med tanke om å samle inn det viktigste på en strukturert måte. 
 
 I fremtidige analyser vil det være hensiktsmessig å bruke registerdata for å se på hva deltakerne gjør i en lengre periode etter WorkOp, men slikt er utenfor rammen av dette dashbordet.
+
+
+# Kontakt
+
+For spørsmål om innholdet i dette dashbordet kan du ta kontakt med Brynjar Morka Mæhlum i team Nav Ung. Enten på Teams, Slack eller mail, `brynjar.morka.maehlum@nav.no`.
