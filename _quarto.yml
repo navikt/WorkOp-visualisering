@@ -1,6 +1,12 @@
 project:
   type: website
   output-dir: _site
+  render: 
+    - index.qmd
+    - arbeidsgivere.qmd
+    - fremskrivning.qmd
+    - manuelle-tall.qmd
+    - data.qmd
 
 website:
   title: "WorkOp — resultater og fremskrivning"
