@@ -1,0 +1,85 @@
+---
+title: "FAQ for de to Forms-skjemaene"
+---
+
+🚧 ***under arbeid*** 🚧
+
+Her svarer vi kort på et par spørsmål om de to Forms-skjemaene som fylles
+ut etter en WorkOp. Finner du ikke svaret, ta kontakt (se nederst).
+
+::: {.callout-note appearance="simple"}
+## Kort om de to skjemaene
+- **Forms 1 – «Rett etter gjennomføring»**: kort skjema om selve gjennomføringen
+  (antall oppmøtte, arbeidsgivere, innsatsgrupper). Fylles ut **dagen etter** WorkOp.
+- **Forms 2 – «Hvor mange fikk jobb»**: handler om resultatene (hvor mange fikk jobb hvor)
+  og litt om hver bedrift. Fylles ut **5 uker etter** WorkOp.
+:::
+
+
+#### Kan vi sende inn på nytt hvis tallene endrer seg senere?
+Ansettelser skjer noen ganger mer enn 5 uker etter WorkOp (f.eks. ved lang
+bakgrunnssjekk). Du trenger ikke fylle ut hele skjemaet på nytt: **send en kort
+e-post til Brynjar** med endringen, så rettes tallet manuelt.
+
+::: {.callout-tip appearance="simple"}
+## Eksempel på endringsmelding
+**Til:** `brynjar.morka.maehlum@nav.no`
+
+**Emne:** Endring i WorkOp 31.10.2030 Øvre Romerike
+
+**Innhold:** Ved WorkOp 31.10.2030 i Øvre Romerike var det 15 og ikke 14 som fikk jobb, fordi
+Avinor nå har ansatt en til. Avinor har altså ansatt 3 totalt. 
+Vedkommende har innsatsgruppe Trenger veiledning.
+:::
+
+
+#### Skal vi melde bare endringen eller det totale antallet?
+Beskriv endringen konkret: kontor, dato for WorkOp, hva som endres og gjerne hvorfor.
+Da er det enkelt å rette uten misforståelser.
+
+
+#### Kan vi klikke oss gjennom skjemaet uten å sende det inn?
+Ja. Du kan åpne skjemaene og bli kjent med spørsmålene før dere fyller ut på ekte.
+Ingenting registreres før du trykker «Send inn».
+
+
+#### Teller dere de som faktisk startet i jobb, eller de som fikk jobbtilbud?
+Vi teller de som har **fått og takket ja til jobb** (signert / bekreftet ansettelse).
+Skjer ansettelsen senere enn 5 uker, meld den inn på e-post når den er bekreftet (se over).
+
+
+#### Hvordan registrerer vi jobbtilbud med forbehold (f.eks. må bestå kurs først)?
+Vent med å telle personen som «i jobb» til forbeholdet er innfridd og ansettelsen
+er bekreftet. Har deltakeren takket nei, bruk feltet **«takket nei til jobbtilbud»**.
+
+::: {.callout-note appearance="simple"}
+Et eget felt for *«jobbtilbud med forbehold»* finnes ikke i skjemaet ennå. Har du
+innspill til hvordan dette bør registreres, si gjerne ifra (se Kontakt).
+Hvis dette skjer ofte kan vi ha det som et eget spørsmål.
+:::
+
+
+#### «Fikk jobb hos en av arbeidsgiverne som var med» vs «hos en annen arbeidsgiver»
+Første felt er deltakere som ble ansatt hos en av bedriftene som deltok på WorkOp.
+Andre felt er deltakere som fikk jobb et annet sted i tiden etter arrangementet.
+
+
+#### Hva betyr «ansatt med tiltak»?
+Antall av de som er i jobb som ble ansatt med et Nav-tiltak (f.eks. lønnstilskudd),
+i motsetning til ordinær ansettelse uten tiltak.
+
+
+#### Hvorfor spør dere om bedriftsinfo (størrelse, bransje, rekrutteringsbehov)?
+For på sikt å kunne selge WorkOp bedre inn til potensielle bedrifter. Det hjelper
+oss å se hvilke bransjer og bedriftstyper som får mest ut av arrangementene.
+
+
+#### Hvilket Nav-kontor/lokasjon velger jeg dersom vi er flere kontorer som samarbeider om WorkOp?
+Velg enten ett av kontorene, eller velg «Annet» og skriv inn alle kontorene som samarbeidet om WorkOp.
+
+
+# Kontakt
+
+Fant du ikke svaret, eller ønsker du en endring? Ta kontakt med Brynjar Morka
+Mæhlum i team Nav Ung — på Teams, Slack eller mail, `brynjar.morka.maehlum@nav.no`.
+Vi tar gjerne imot forslag til forbedringer av spørsmålene og skjemaene.
