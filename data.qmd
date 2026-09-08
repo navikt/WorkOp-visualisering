@@ -1,5 +1,5 @@
 ---
-title: "WorkOp — datagrunnlag"
+title: "Datagrunnlag"
 ---
 
 ```{python}
@@ -14,6 +14,11 @@ from IPython.display import HTML
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner
 ```
+
+## Er et tall feil?
+
+Meld ifra om feil så retter vi det opp. Se kontaktinfo i [FAQ](faq.qmd).
+
 
 ## Komplett datasett
 

@@ -1,5 +1,5 @@
 ---
-title: "WorkOp — oversikt"
+title: "Oversikt og visualiseringer"
 ---
 
 ::: {.callout-tip appearance="simple"}

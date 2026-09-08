@@ -1,6 +1,6 @@
 
 ---
-title: "WorkOp — manuelle tall"
+title: "Manuelle tall"
 ---
 
 Blant de første WorkOp-ene har det blitt samlet inn diverse data om deltakerne
