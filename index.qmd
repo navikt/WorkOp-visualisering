@@ -2,7 +2,30 @@
 title: "WorkOp — oversikt"
 ---
 
->Om datagrunnlaget: Datagrunnlaget til dette dashbordet er selvrapportert. Se nederst på siden for mer informasjon.
+::: {.callout-tip appearance="simple"}
+
+## Hvorfor måle og samle inn data?
+
+Målinger (også her) brukes oftest for å rapportere resultater, men vi ønsker også å bli bedre ved å lære sammen.
+Se mer om dette i seksjonen ["Hvorfor måler vi?"](#hvorfor-måler-vi).
+:::
+
+::: {.callout-important appearance="simple"}
+
+## Bruk av dashbordet (viktig!)
+
+Husk at det er veldig mange faktorer som påvirker gjennomføringen og dermed antall ungdommer som får jobb, så **de rene tallene skal være et utgangspunkt for diskusjon, refleksjon og læring** (kortere læringssløyfe).
+
+Tall alene gir kun et begrenset bilde, men hvis det brukes riktig og godt kan vi lære mye sammen 🚀
+:::
+
+::: {.callout-tip appearance="simple"}
+
+## Om datagrunnlaget
+
+Datagrunnlaget til dette dashbordet er selvrapportert.
+Se nederst på siden for mer informasjon.
+:::
 
 ```{python}
 #| echo: false
@@ -152,6 +175,19 @@ display(
     .hide(axis="index")
 )
 ```
+
+
+## Hvorfor måler vi?
+
+WorkOp skal være en metode som hele tiden utvikler seg gjennom erfaring og læring.
+Når vi samler inn erfaringer og resultater fra WorkOp-arrangementer på tvers av kontorer og fylker, kan vi:
+
+- følge med på skaleringen
+- ⁠reflektere over gjennomføringen
+- se resultater umiddelbart og over tid
+- ⁠rapportere resultater oppover i systemet
+- ha et grunnlag for å snakke om hva som fungerte godt/dårlig
+
 
 ## Kort om WorkOp
 
