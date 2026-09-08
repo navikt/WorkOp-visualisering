@@ -38,3 +38,10 @@ diff-xlsx-csv:
 # Oppdaterer pakker med uv
 update:
     uv lock --upgrade
+
+
+
+# kopierer csv fra data/ til dbt/seeds
+cpseed:
+    cp data/'Rett etter gjennomføring av WorkOp.csv' dbt/seeds/rett_etter_gjennomføring_av_workop.csv
+    cp data/'Hvor mange fikk jobb etter WorkOp.csv' dbt/seeds/hvor_mange_fikk_jobb_etter_workop.csv

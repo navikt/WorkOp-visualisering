@@ -16,3 +16,9 @@ _extensions/
 
 # lagrede plott
 *.png
+
+# dbt
+logs/
+target/
+dbt_packages/
+dbt/seeds/*.csv

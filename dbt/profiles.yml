@@ -1,0 +1,12 @@
+dbt_workop:
+  target: dbt_brynjar
+  outputs:
+    dbt_brynjar:
+      type: bigquery
+      method: oauth
+      dataset: dbt_brynjar
+      location: europe-north1
+      project: nav-ung-prod-5175
+      threads: 4
+      job_retries: 0
+      job_execution_timeout_seconds: 300

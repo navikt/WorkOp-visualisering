@@ -1,0 +1,57 @@
+
+name: 'dbt_workop'
+version: '1.0.0'
+profile: 'dbt_workop'
+flags:
+  send_anonymous_usage_stats: False  # Stopper datasending til dbt Labs
+clean-targets:
+  - "logs"
+  - "target"
+  - "dbt_packages"
+
+test-paths: ["tests"]
+macro-paths: ["macros"]
+model-paths: ["models"]
+seed-paths: ["seeds"]
+
+vars:
+  prikk_terskel: 10  # Personvern: nedre grense for antall i dataprodukt-laget
+
+
+seeds:
+  dbt_workop:
+    +delimiter: ';'
+    +quote_columns: false
+    +tags: ['seed']
+
+models:
+  dbt_workop:
+    +materialized: view
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +materialized: view
+      +tags: ['staging']
+      +docs:
+        node_color: '#a3c785'
+    intermediate:
+      +tags: ['intermediate']
+      +materialized: view
+      +docs:
+        node_color: '#49a8b3'
+    marts:
+      +materialized: table
+      +tags: ['marts']
+      +docs:
+        node_color: '#517ab3'
+    dataprodukt:
+      +materialized: view
+      +tags: ['dataprodukt']
+      +docs:
+        node_color: '#a176b3'
+    # dataprodukt_pii:
+    #   +materialized: view
+    #   +tags: ['dataprodukt', 'pii']
+    #   +docs:
+    #     node_color: '#ee3c1f'
