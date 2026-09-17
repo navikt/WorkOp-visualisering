@@ -72,6 +72,17 @@ Fremskrivningen bruker parametere i `src/workop/transform.py`:
 └── justfile             # Vanlige kommandoer
 ```
 
+## For AI-agenter
+
+Kontekst for Copilot og andre kodeagenter ligger i
+[`.github/copilot-instructions.md`](.github/copilot-instructions.md), med
+filspesifikke tillegg i [`.github/instructions/`](.github/instructions/) for
+Python, Quarto, `just` og dbt. [`AGENTS.md`](AGENTS.md) peker dit.
+
+Filene dokumenterer blant annet fallgruvene som har gitt feil før: posisjonelle
+kolonneindekser i `extract.py`, `output_cols`-allowlisten, og Quarto sin
+inline-uttrykk-syntaks.
+
 
 ## Palett
 
