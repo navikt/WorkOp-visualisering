@@ -22,20 +22,30 @@ Meld ifra om feil så retter vi det opp. Se kontaktinfo i [FAQ](faq.qmd).
 
 ## Komplett datasett
 
-Tabellen under viser alle WorkOp-arrangementer med nøkkelkolonner fra begge
-Forms-innsamlinger. Rader der oppmøtte eller fått-jobb avviker mellom Forms 1 og
-Forms 2 er markert med ⚠️.
+Tabellen under viser alle gjennomførte WorkOp-arrangementer med nøkkelkolonner
+fra begge Forms-innsamlingene. Rader der oppmøtte eller fått-jobb avviker mellom
+Forms 1 og Forms 2 er markert med ⚠️.
+
+Arrangementer som nettopp er gjennomført står med status «Venter på resultater»
+og har tomme resultatkolonner. Oppfølgingsskjemaet sendes ut omtrent fem uker
+etter gjennomføring, så det tar litt tid før resultatene er på plass.
 
 ```{python}
 #| echo: false
 df_raw, warnings_list = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
-aktive = df[df["har_data"]].copy()
+
+# Viser alle gjennomførte arrangementer, også de som mangler Forms 2-svar
+gjennomfort = df[df["har_gjennomforing"]].copy()
+gjennomfort["status"] = gjennomfort["venter_pa_forms2"].map(
+    {True: "Venter på resultater", False: "✅"}
+)
 
 # Velg visningskolonner
-vis = aktive[[
-    "workop_nr", "dato", "nav_kontor",
+vis = gjennomfort[[
+    "workop_nr", "dato", "nav_kontor", "status",
     "oppmotte", "deltakere_f2",
+    "aktuell_ordinaer_stilling",
     "fatt_jobb", "jobb_hos_wo_ag", "jobb_annen_ag",
     "andel_jobb",
     "arbeidsgivere", "ansatt_med_tiltak",
@@ -51,8 +61,9 @@ mask = vis["deltakere_f2"].notna() & vis["oppmotte"].notna() & (vis["oppmotte"] 
 vis.loc[mask, "diff_oppmotte"] = "⚠️"
 
 vis.columns = [
-    "WO", "Dato", "Lokasjon",
+    "WO", "Dato", "Lokasjon", "Status",
     "Deltakere (F1)", "Deltakere (F2)",
+    "Aktuell for stilling",
     "Fått jobb", "Jobb WO-AG", "Jobb annen AG",
     "Andel jobb",
     "Arbeids-givere", "Jobb med tiltak",
@@ -64,8 +75,9 @@ display(
     vis.style
     .format({
         "Andel jobb": "{:.0%}",
-        "Oppmøtte (F1)": "{:.0f}",
+        "Deltakere (F1)": "{:.0f}",
         "Deltakere (F2)": "{:.0f}",
+        "Aktuell for stilling": "{:.0f}",
         "Fått jobb": "{:.0f}",
         "Jobb WO-AG": "{:.0f}",
         "Jobb annen AG": "{:.0f}",
@@ -82,6 +94,37 @@ display(
 **Diff-kolonnen** viser ⚠️ der oppmøtte fra Forms 1 (gjennomføring) avviker fra
 deltakertall i Forms 2 (oppfølging). Små avvik er normalt — noen deltakere kan
 ha gått før speed-intervjuene.
+
+**Aktuell for stilling** er et nytt spørsmål i gjennomføringsskjemaet, og er
+derfor bare besvart for de nyeste arrangementene.
+
+## Etterlevelse av metoden
+
+Arrangørene svarer selv på hvor tett de fulgte WorkOp-metoden. Spørsmålet er
+nytt i gjennomføringsskjemaet, så det er foreløpig bare de nyeste
+arrangementene som har svart. Oversikten fylles ut etter hvert.
+
+```{python}
+#| echo: false
+from src.workop.plots import (
+    fig_metode_etterlevelse,
+    figurtekst,
+    tabell_metode_etterlevelse,
+)
+
+metode = tabell_metode_etterlevelse(df)
+
+if len(metode) == 0:
+    print("Ingen arrangementer har svart på spørsmålet ennå.")
+else:
+    fig_metode_etterlevelse(df).show()
+    display(HTML(figurtekst(
+        "Søylene viser hvor mange arrangementer som svarte hvert av "
+        "alternativene om etterlevelse av metoden.",
+        antall=len(metode),
+    )))
+    display(metode.style.hide(axis="index"))
+```
 
 ## Datakvalitetsadvarsler
 

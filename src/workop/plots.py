@@ -44,8 +44,13 @@ KONTORER_PER_LOKASJON: dict[str, int] = {
 
 
 def antall_unike_kontorer(df: pd.DataFrame) -> tuple[int, int]:
-    """Returnerer (antall lokasjoner, antall faktiske Nav-kontorer)."""
-    aktive = df[df["har_data"]].copy()
+    """
+    Returnerer (antall lokasjoner, antall faktiske Nav-kontorer).
+
+    Teller gjennomførte arrangementer, ikke bare de med resultat — et kontor har
+    arrangert WorkOp selv om Forms 2 ikke er besvart ennå.
+    """
+    aktive = df[df["har_gjennomforing"]].copy()
     lokasjoner = aktive["nav_kontor"].dropna().unique().tolist()
     n_lokasjoner = len(lokasjoner)
     n_kontorer = sum(KONTORER_PER_LOKASJON.get(lok, 1) for lok in lokasjoner)
@@ -90,6 +95,41 @@ PLOTLY_TEMPLATE = "plotly_white"
 _LEGEND_BUNN = {"orientation": "h", "yanchor": "top", "y": -0.18, "xanchor": "center", "x": 0.5}
 _MARGIN = {"t": 70, "b": 80}
 _FARGE_UKJENT = "#AAAAAA"
+
+
+def figurtekst(
+    beskrivelse: str,
+    df: pd.DataFrame | None = None,
+    *,
+    antall: int | None = None,
+) -> str:
+    """
+    Lager hjelpeteksten som står under et plott.
+
+    Teksten skal si kort hva figuren viser, i vanlig språk, og hvor mange
+    arrangementer tallene bygger på. Den rendres som vanlig HTML og ikke som en
+    del av bildet, slik at skjermlesere får den med.
+
+    Args:
+        beskrivelse: Én setning om hva figuren viser. Avsluttes med punktum.
+        df: DataFrame — antall hentes fra `har_data` når `antall` ikke er satt.
+        antall: Overstyrer antallet, for figurer med et annet datagrunnlag.
+
+    Returnerer:
+        HTML-streng som kan sendes rett til `display(HTML(...))`.
+    """
+    if antall is None:
+        if df is None:
+            raise ValueError("figurtekst() trenger enten df eller antall")
+        antall = int(df["har_data"].sum())
+
+    arrangement = "arrangement" if antall == 1 else "arrangementer"
+
+    return (
+        '<p style="color:#555; font-size:0.8rem; font-style:italic; margin:-0.1rem 0 1.5rem 0;">'
+        f"{beskrivelse} Tall fra {antall} WorkOp-{arrangement}."
+        "</p>"
+    )
 
 
 def _beregn_innsatsgrupper(df: pd.DataFrame) -> tuple[list[str], list[float], list[str], int]:
@@ -382,7 +422,7 @@ def fig_histogram_andel_jobb(df: pd.DataFrame, bin_storrelse: int = 5) -> go.Fig
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title="Fordeling: andel som fikk jobb per WorkOp",
-        xaxis_title=f"Andel som fikk jobb ({bin_storrelse}%-bins)",
+        xaxis_title=f"Andel som fikk jobb (gruppert i intervaller på {bin_storrelse} prosentpoeng)",
         yaxis_title="Antall WorkOp-er",
         barmode="stack",
         xaxis={"categoryorder": "array", "categoryarray": [bin_labels[b] for b in alle_bins]},
@@ -466,7 +506,11 @@ def fig_histogram_deltakere(df: pd.DataFrame) -> tuple[go.Figure, str]:
 
     n_f = len(med_forberedende)
     n_o = len(alle)
-    note = f"{n_o - n_f} WO-er mangler antall deltakere på forberedende workshop" if n_o > n_f else ""
+    note = (
+        f"{n_o - n_f} arrangementer mangler antall deltakere på forberedende workshop"
+        if n_o > n_f
+        else ""
+    )
 
     fig = make_subplots(
         rows=1, cols=2,
@@ -506,7 +550,7 @@ def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
 
     Grupper alle aktive WorkOps med parsbar dato per kvartal. Tomme kvartaler
     (ingen WorkOp) vises som 0 for å synliggjøre gapene i programmet.
-    WorkOps uten dato nevnes i tittelen.
+    Arrangementer uten dato nevnes i tittelen.
     """
     aktive = df[df["har_data"]].copy()
     med_dato = aktive[aktive["dato"].notna()].copy()
@@ -527,7 +571,7 @@ def fig_deltakere_jobb_tid(df: pd.DataFrame) -> go.Figure:
     ikke_jobb = (kvartalsvis["oppmotte"] - kvartalsvis["fatt_jobb"]).tolist()
     customdata = list(zip(kvartalsvis["antall"].tolist(), kvartalsvis["oppmotte"].tolist()))
 
-    note = f" ({antall_uten} WorkOps uten dato er utelatt)" if antall_uten else ""
+    note = f" ({antall_uten} arrangementer uten dato er utelatt)" if antall_uten else ""
 
     fig = go.Figure()
     fig.add_trace(
@@ -651,6 +695,93 @@ _STORRELSE_MAP = {
 _STORRELSE_FARGER = [PALETT["Lilla"], PALETT["Blå"], PALETT["Turkis"], PALETT["Oransj"]]
 
 
+# ---------------------------------------------------------------------------
+# Etterlevelse av metoden (Forms 1, flervalg)
+# ---------------------------------------------------------------------------
+# Nøkkel = starten på svaralternativet i Forms (små bokstaver), verdi = kort
+# visningstekst. Rekkefølgen styrer også rekkefølgen i tabell og figur.
+_METODE_KATEGORIER: dict[str, str] = {
+    "vi fulgte metoden": "Fulgte metoden fullt ut",
+    "vi gjorde noen mindre": "Mindre lokale tilpasninger",
+    "vi justerte metoden": "Justerte metoden",
+}
+_METODE_ANNET = "Annet svar"
+_METODE_FARGER = [PALETT["Mellom Grønn"], PALETT["Mellom Blå"], PALETT["Mellom Lilla"], _FARGE_UKJENT]
+
+
+def _metode_label(verdi: str) -> str:
+    """Kort visningstekst for et svar på metode-spørsmålet."""
+    tekst = str(verdi).strip().lower()
+    for prefiks, label in _METODE_KATEGORIER.items():
+        if tekst.startswith(prefiks):
+            return label
+    return _METODE_ANNET
+
+
+def tabell_metode_etterlevelse(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Smal tabell: WorkOp | Dato | Lokasjon | Fulgte metoden.
+
+    Tar bare med arrangementer som har svart på metode-spørsmålet. Spørsmålet
+    er nytt i gjennomføringsskjemaet, så de fleste arrangementene mangler svar.
+    """
+    svar = df[df["metode_etterlevelse"].notna()].copy()
+    svar["metode_label"] = svar["metode_etterlevelse"].map(_metode_label)
+    svar = svar.sort_values("workop_nr")
+
+    ut = pd.DataFrame(
+        {
+            "WorkOp": svar["workop_nr"].astype("Int64"),
+            "Dato": svar["dato"].dt.strftime("%d.%m.%Y").fillna("—"),
+            "Lokasjon": svar["nav_kontor"].fillna("—"),
+            "Fulgte metoden": svar["metode_label"],
+        }
+    )
+    return ut.reset_index(drop=True)
+
+
+def fig_metode_etterlevelse(df: pd.DataFrame) -> go.Figure:
+    """
+    Horisontalt søylediagram: antall arrangementer per svar på metode-spørsmålet.
+
+    Alle svaralternativene vises selv om de har null svar, slik at figuren viser
+    hele spennet fra «fulgte metoden fullt ut» til «justerte metoden».
+    """
+    svar = df[df["metode_etterlevelse"].notna()].copy()
+    labels = list(_METODE_KATEGORIER.values())
+    antall_per_label = svar["metode_etterlevelse"].map(_metode_label).value_counts()
+
+    if (antall_per_label.index == _METODE_ANNET).any():
+        labels.append(_METODE_ANNET)
+
+    verdier = [int(antall_per_label.get(label, 0)) for label in labels]
+    maks = max(verdier) if verdier else 0
+
+    # Snus fordi horisontale søyler tegnes nedenfra og opp
+    fig = go.Figure(
+        go.Bar(
+            x=verdier[::-1],
+            y=labels[::-1],
+            orientation="h",
+            marker_color=_METODE_FARGER[: len(labels)][::-1],
+            text=verdier[::-1],
+            textposition="outside",
+            hovertemplate="%{y}: %{x} arrangementer<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Hvor tett arrangørene fulgte WorkOp-metoden",
+        xaxis_title="Antall arrangementer",
+        yaxis_title=None,
+        showlegend=False,
+        margin={"t": 70, "b": 50, "l": 200, "r": 60},
+        height=320,
+        xaxis_range=[0, max(maks * 1.25, 1)],
+    )
+    return fig
+
+
 def fig_bransje(df_ag: pd.DataFrame) -> go.Figure:
     """
     Horisontal søylediagram: antall arbeidsgiverbesøk per normalisert bransje.
@@ -719,7 +850,7 @@ def fig_bedriftsstorrelse(df_ag: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
         title="Bedriftsstørrelse",
-        xaxis_title="Størrelsesbøtte (obs, ikke alle bedrifters størrelser er kjent)",
+        xaxis_title="Antall ansatte i bedriften",
         yaxis_title="Antall arbeidsgivere",
         showlegend=False,
         margin=_MARGIN,

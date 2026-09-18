@@ -29,6 +29,18 @@ Data samles inn i to steg per WorkOp-arrangement:
    - `data/Hvor mange fikk jobb etter WorkOp.csv`
 3. Kjør `just render` for å bygge oppdatert nettside
 
+Gjennomføringsskjemaet leses på kolonnenavn, så nye spørsmål kan legges til i
+Forms uten at uttrekket brekker. Fritekstsvar hentes bevisst ikke ut — nettsiden
+er offentlig, så fritekst leses i Forms av de som gjør nærmere analyser.
+
+### Gjennomført vs. målt
+
+De to skjemaene er ikke i synk: oppfølgingsskjemaet skal fylles ut fem uker
+etter arrangementet. Nylig gjennomførte WorkOp-er telles derfor som gjennomført,
+men inngår ikke i jobbtall og andeler før resultatet er kommet inn. Differansen
+vises på forsiden, og arrangementene ligger med status «Venter på resultater» i
+tabellen på Data-fanen.
+
 ## Kjøring
 
 ```bash

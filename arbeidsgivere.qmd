@@ -9,7 +9,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from src.workop.extract import extract_arbeidsgivere
-from src.workop.plots import fig_bransje, fig_bedriftsstorrelse
+from src.workop.plots import fig_bransje, fig_bedriftsstorrelse, figurtekst
+from IPython.display import HTML
 
 
 df_ag, ag_missing = extract_arbeidsgivere()
@@ -33,12 +34,19 @@ En arbeidsgiver teller én gang per WorkOp de deltar på.
 ```{python}
 #| echo: false
 fig_bransje(df_ag).show()
+display(HTML(figurtekst(
+    f"Søylene viser hvor mange arbeidsgiverbesøk som kom fra hver bransje. {n_ag} arbeidsgiverbesøk.",
+    antall=n_workop)))
 ```
 
 ## Bedriftsstørrelse
 ```{python}
 #| echo: false
 fig_bedriftsstorrelse(df_ag).show()
+display(HTML(figurtekst(
+    "Søylene viser hvor mange av arbeidsgiverne som var små, mellomstore eller store bedrifter. "
+    f"Størrelsen er ikke kjent for alle bedriftene. {n_ag} arbeidsgiverbesøk.",
+    antall=n_workop)))
 ```
 
 

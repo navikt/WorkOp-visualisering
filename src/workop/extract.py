@@ -27,6 +27,91 @@ SEMANTIKK_GRENSE = 46
 # Antall arbeidsgiver-slots i Forms 2 branching
 AG_SLOTS = 7
 
+# ---------------------------------------------------------------------------
+# Forms 1 — feltoppslag på kolonnenavn
+#
+# Forms 1 leses på NAVN, ikke posisjon. Grunnen: nye spørsmål settes inn midt i
+# skjemaet og forskyver alle kolonnene etter seg. Skjedde sist da spørsmålene om
+# ordinær stilling og metode-etterlevelse kom til — da flyttet «Antall
+# arbeidsgivere» seg fra indeks 11 til 12.
+#
+# Tabellen er {internt feltnavn: nøkkelord som må finnes i kolonnenavnet}.
+# Nøkkelordene er små fragmenter i lowercase, så mindre ordlydsendringer ikke
+# bryter uttrekket. De må matche NØYAKTIG ÉN kolonne — `_finn_kolonne()` gir
+# advarsel både ved null og flere treff.
+#
+# NB: «trenger veiledning» finnes i to spørsmål, derfor det avsluttende `"?`
+# i nøkkelordet for innsats_veiledning_oppmotte.
+#
+# Fritekstfeltet «Har du noen forslag til endring i metoden …» hentes bevisst
+# IKKE ut — se merknad i extract_all().
+# ---------------------------------------------------------------------------
+FORMS1_FELT: dict[str, str] = {
+    "dato_raw": "dato for selve workop",
+    "nav_kontor": "nav-kontor var arrangør",
+    "oppmotte_forberedende": "forberedende workshop",
+    "oppmotte": "oppmøtte deltakere på selve workop",
+    "innkalt_intervju": "speedintervju gjennomført",
+    "aktuell_ordinaer_stilling": "aktuell for minst én ordinær stilling",
+    "arbeidsgivere": "antall arbeidsgivere på workop",
+    "metode_etterlevelse": "hvordan dere fulgte metoden",
+    "ungdomsgaranti_oppmotte": "omfattet av ungdomsgarantien",
+    "innsats_gode_oppmotte": 'innsatsgruppen "gode muligheter"',
+    "innsats_nedsatt_oppmotte": "nedsatt arbeidsevne",
+    "innsats_veiledning_oppmotte": 'trenger veiledning"?',
+}
+
+# Felt som kom til i skjemaendringen høsten 2026. Mangler i eldre CSV-er, og
+# skal derfor ikke gi advarsel når de ikke finnes.
+FORMS1_VALGFRIE: set[str] = {"aktuell_ordinaer_stilling", "metode_etterlevelse"}
+
+# Felt som skal leses som tall. Resten beholdes som tekst.
+FORMS1_TALLFELT: set[str] = {
+    "oppmotte_forberedende",
+    "oppmotte",
+    "innkalt_intervju",
+    "aktuell_ordinaer_stilling",
+    "arbeidsgivere",
+    "ungdomsgaranti_oppmotte",
+    "innsats_gode_oppmotte",
+    "innsats_nedsatt_oppmotte",
+    "innsats_veiledning_oppmotte",
+}
+
+# ---------------------------------------------------------------------------
+# Forventet Forms 2-skjema
+#
+# Forms 2 leses fortsatt på POSISJON (f2_cols[9] osv.), blant annet fordi
+# arbeidsgiver-slotene er navngitt med tallsuffiks. Tabellen under er en
+# vaktpost: {indeks: nøkkelord som må finnes i navnet}. Ved avvik legges en
+# advarsel i warns-lista.
+#
+# Ved endring i Forms 2: oppdater BÅDE indeksene i koden og denne tabellen.
+# ---------------------------------------------------------------------------
+FORMS2_SKJEMA: dict[int, str] = {
+    1: "workop",
+    4: "email",
+    5: "name",
+    6: "dato",
+    7: "nav-kontor",
+    8: "hvor mange deltakere",
+    9: "jobb hos en av arbeidsgiverne",
+    10: "jobb hos en annen arbeidsgiver",
+    11: "takket nei",
+    12: "ansatt med tiltak",
+    13: "ungdomsgarantien",
+    14: "gode muligheter",
+    15: "nedsatt arbeidsevne",
+    16: "trenger veiledning",
+    17: "arbeidsgivere var tilstede",
+    18: "bedriftsnavn",
+    19: "bransje",
+    20: "antall ansatte",
+    21: "ønsker å rekruttere",
+    22: "speedintervjuer",
+    23: "ansatte bedriften",
+}
+
 # Normalisering fritekst-bransje → standardisert kategori (nøkler er lowercase).
 # Oppdater når nye bransjetyper dukker opp.
 BRANSJE_NORM: dict[str, str] = {
@@ -200,13 +285,127 @@ def _read_forms_csv(filepath: str | Path) -> pd.DataFrame:
     return df
 
 
+def _finn_kolonne(
+    cols: list[str], nokkelord: str, kilde: str, valgfri: bool = False
+) -> tuple[str | None, str | None]:
+    """
+    Finner kolonnen hvis navn inneholder nøkkelordet.
+
+    Args:
+        cols: Faktiske kolonnenavn fra CSV-en.
+        nokkelord: Fragment som må finnes i kolonnenavnet (lowercase).
+        kilde: Navn på kilden, brukt i advarselsteksten.
+        valgfri: True hvis feltet kan mangle uten at det er en feil.
+
+    Returnerer:
+        (kolonnenavn, advarsel). Kolonnenavn er None hvis feltet ikke ble
+        entydig identifisert. Advarsel er None når alt er i orden.
+    """
+    treff = [c for c in cols if nokkelord in c.lower()]
+
+    if len(treff) == 1:
+        return treff[0], None
+
+    if not treff:
+        if valgfri:
+            return None, None
+        return None, f"{kilde}: fant ingen kolonne som inneholder '{nokkelord}'."
+
+    return None, (
+        f"{kilde}: '{nokkelord}' matcher {len(treff)} kolonner "
+        f"({', '.join(treff)}). Nøkkelordet må gjøres mer spesifikt."
+    )
+
+
+def _les_forms1_felt(df: pd.DataFrame) -> tuple[dict[str, pd.Series], list[str]]:
+    """
+    Plukker ut Forms 1-feltene basert på kolonnenavn (se FORMS1_FELT).
+
+    Felt som ikke finnes gir en kolonne med None, slik at eldre CSV-er uten de
+    nyeste spørsmålene fortsatt kan leses.
+
+    Returnerer:
+        (felter, advarsler) der felter er {internt feltnavn: Series}.
+    """
+    cols = df.columns.tolist()
+    felter: dict[str, pd.Series] = {}
+    warns: list[str] = []
+
+    for felt, nokkelord in FORMS1_FELT.items():
+        kolonne, advarsel = _finn_kolonne(
+            cols, nokkelord, "Forms 1", valgfri=felt in FORMS1_VALGFRIE
+        )
+        if advarsel:
+            warns.append(advarsel)
+
+        if kolonne is None:
+            felter[felt] = pd.Series([None] * len(df), index=df.index)
+        elif felt in FORMS1_TALLFELT:
+            felter[felt] = df[kolonne].map(_safe_int)
+        else:
+            felter[felt] = df[kolonne]
+
+    if warns:
+        warns.append(
+            "Forms 1: skjemaet ser ut til å være endret. Oppdater FORMS1_FELT i "
+            "src/workop/extract.py før tallene brukes."
+        )
+
+    return felter, warns
+
+
+def _sjekk_skjema(cols: list[str], skjema: dict[int, str], kilde: str) -> list[str]:
+    """
+    Sjekker at Forms-kolonnene ligger på forventet posisjon.
+
+    extract_all() leser kolonner på indeks, ikke navn. Et nytt spørsmål i Forms
+    forskyver alt etter seg og gir stille feil i tallene. Denne sjekken fanger
+    det opp og returnerer en advarsel per avvik.
+
+    Args:
+        cols: Faktiske kolonnenavn fra CSV-en.
+        skjema: {indeks: nøkkelord som må finnes i kolonnenavnet (lowercase)}.
+        kilde: Navn på kilden, brukt i advarselsteksten.
+
+    Returnerer:
+        Liste med advarsler. Tom liste betyr at skjemaet stemmer.
+    """
+    avvik: list[str] = []
+
+    for idx, nokkelord in sorted(skjema.items()):
+        if idx >= len(cols):
+            avvik.append(
+                f"{kilde}: mangler kolonne {idx} (forventet noe med '{nokkelord}'). "
+                f"Filen har bare {len(cols)} kolonner."
+            )
+            continue
+        if nokkelord not in cols[idx].lower():
+            avvik.append(
+                f"{kilde}: kolonne {idx} er '{cols[idx]}', forventet noe med "
+                f"'{nokkelord}'."
+            )
+
+    if avvik:
+        avvik.append(
+            f"{kilde}: Forms-skjemaet ser ut til å være endret. Oppdater "
+            f"kolonneindeksene i src/workop/extract.py før tallene brukes."
+        )
+
+    return avvik
+
+
 def _fjern_testrader(df: pd.DataFrame) -> pd.DataFrame:
     """Fjerner rader der Email, Name og Nav-kontor alle er 'test' (case-insensitive)."""
-    cols = df.columns.tolist()
+    kontor_kol, _ = _finn_kolonne(
+        df.columns.tolist(), "nav-kontor var arrangør", "Forms"
+    )
+    if kontor_kol is None:
+        return df.copy()
+
     er_test = (
         df["Email"].str.strip().str.lower().eq("test")
         & df["Name"].str.strip().str.lower().eq("test")
-        & df[cols[7]].str.strip().str.lower().eq("test")
+        & df[kontor_kol].str.strip().str.lower().eq("test")
     )
     return df[~er_test].copy()
 
@@ -269,6 +468,10 @@ def extract_all(
     f1 = _read_forms_csv(f1_path)
     f2 = _read_forms_csv(f2_path)
 
+    # Sjekk at kolonnene ligger der vi forventer (se FORMS2_SKJEMA).
+    # Forms 1 sjekkes implisitt gjennom navneoppslaget i _les_forms1_felt().
+    warns += _sjekk_skjema(f2.columns.tolist(), FORMS2_SKJEMA, "Forms 2")
+
     # Fjern test-rader (Email, Name og Nav-kontor er alle "test")
     f1 = _fjern_testrader(f1)
     f2 = _fjern_testrader(f2)
@@ -282,21 +485,13 @@ def extract_all(
     f2["workop_nr"] = f2["WorkOp"].str.strip().astype(int)
 
     # --- Forms 1: oppmøte og innsatsbehov ---
-    f1_cols = f1.columns.tolist()
-    f1_data = pd.DataFrame({
-        "workop_nr": f1["workop_nr"],
-        "dato_raw": f1[f1_cols[6]],  # Dato for selve WorkOp
-        "nav_kontor": f1[f1_cols[7]],  # Hvilket Nav-kontor var arrangør?
-        "oppmotte_forberedende": f1[f1_cols[8]].map(_safe_int),
-        "oppmotte": f1[f1_cols[9]].map(_safe_int),
-        "innkalt_intervju": f1[f1_cols[10]].map(_safe_int),
-        "arbeidsgivere": f1[f1_cols[11]].map(_safe_int),
-        # Innsatsgrupper for oppmøtte
-        "ungdomsgaranti_oppmotte": f1[f1_cols[12]].map(_safe_int),
-        "innsats_gode_oppmotte": f1[f1_cols[13]].map(_safe_int),
-        "innsats_nedsatt_oppmotte": f1[f1_cols[14]].map(_safe_int),
-        "innsats_veiledning_oppmotte": f1[f1_cols[15]].map(_safe_int),
-    })
+    # Kolonnene finnes via navneoppslag, ikke posisjon — nye spørsmål i Forms
+    # forskyver indeksene. Fritekstfeltet «Har du noen forslag til endring i
+    # metoden …» hentes bevisst ikke ut: dashbordet er offentlig, og fritekst
+    # skal bare leses i Forms.
+    f1_felt, f1_warns = _les_forms1_felt(f1)
+    warns += f1_warns
+    f1_data = pd.DataFrame({"workop_nr": f1["workop_nr"], **f1_felt})
 
     # --- Forms 2: jobb-resultater ---
     f2_cols = f2.columns.tolist()
@@ -316,8 +511,12 @@ def extract_all(
     })
 
     # --- Join på workop_nr ---
+    # Registrert i Forms 1 = arrangementet er gjennomført. Forms 2 sendes ut
+    # ca. fem uker senere, så de nyeste arrangementene mangler resultat.
+    f1_numre = set(f1_data["workop_nr"])
     df = f1_data.merge(f2_data, on="workop_nr", how="outer")
     df = df.sort_values("workop_nr").reset_index(drop=True)
+    df["har_gjennomforing"] = df["workop_nr"].isin(f1_numre)
 
     # --- Parse dato ---
     df["dato"] = pd.to_datetime(df["dato_raw"].map(_parse_forms_date))
@@ -361,8 +560,12 @@ def extract_all(
     df["dagsverk"] = None
     df["kostnader"] = None
 
-    # har_data: True hvis vi har fatt_jobb
+    # har_data: True hvis vi har fatt_jobb, altså at Forms 2 er besvart.
+    # Alle resultattall og andeler regnes på disse radene.
     df["har_data"] = df["fatt_jobb"].notna()
+
+    # Gjennomført, men resultatet er ikke kommet inn ennå
+    df["venter_pa_forms2"] = df["har_gjennomforing"] & ~df["har_data"]
 
     # --- Sanity checks ---
     aktive = df[df["har_data"]]
@@ -373,19 +576,22 @@ def extract_all(
             f"oppmotte ({row['oppmotte']})"
         )
 
-    # Velg kolonner i riktig rekkefølge (kompatibel med gammel API)
+    # Velg kolonner i riktig rekkefølge (kompatibel med gammel API).
+    # NB: dette er en allowlist — kolonner som ikke står her, forsvinner stille
+    # fra resultatet. Legger du til en ny kolonne over, må den også inn her.
     output_cols = [
         "workop_nr", "raw_title", "title_kort", "dato", "fallback_year",
         "nav_kontor",
         "oppmotte_forberedende", "oppmotte", "deltakere_f2", "arbeidsgivere",
-        "innkalt_intervju",
+        "innkalt_intervju", "aktuell_ordinaer_stilling", "metode_etterlevelse",
         "fatt_jobb", "fatt_jobb_tiltak", "fatt_jobb_nedsatt",
         "fatt_jobb_veiledning", "fatt_jobb_gode",
         "jobb_hos_wo_ag", "jobb_annen_ag", "takket_nei", "ansatt_med_tiltak",
         "ungdomsgaranti_oppmotte", "innsats_gode_oppmotte",
         "innsats_nedsatt_oppmotte", "innsats_veiledning_oppmotte",
         "ungdomsgaranti_jobb",
-        "dagsverk", "kostnader", "har_data",
+        "dagsverk", "kostnader",
+        "har_gjennomforing", "har_data", "venter_pa_forms2",
     ]
     df = df[output_cols]
 
@@ -411,6 +617,7 @@ def extract_arbeidsgivere(
     warns: list[str] = []
 
     f2 = _read_forms_csv(f2_path)
+    warns += _sjekk_skjema(f2.columns.tolist(), FORMS2_SKJEMA, "Forms 2")
     f2 = _fjern_testrader(f2)
     f2 = f2[f2["WorkOp"].notna() & (f2["WorkOp"].str.strip() != "")].copy()
     f2["workop_nr"] = f2["WorkOp"].str.strip().astype(int)

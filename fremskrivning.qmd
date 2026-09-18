@@ -10,7 +10,8 @@ warnings.filterwarnings("ignore")
 
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, estimat, snitt_fra_data, bootstrap_usikkerhet
-from src.workop.plots import fig_jobb_usikkerhet
+from src.workop.plots import fig_jobb_usikkerhet, figurtekst
+from IPython.display import HTML
 
 
 df_raw, _ = extract_all()
@@ -62,6 +63,9 @@ Dette gjentas 5 000 ganger. Båndet reflekterer reell variasjon mellom arrangeme
 #| echo: false
 boot = bootstrap_usikkerhet(df)
 fig_jobb_usikkerhet(boot).show()
+display(HTML(figurtekst(
+    "Søylene viser hvor mange som er ventet å få jobb hvert år. Det skraverte "
+    "båndet viser hvor mye tallet realistisk kan variere.", df)))
 ```
 
 ## Estimattabell

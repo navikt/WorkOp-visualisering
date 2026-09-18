@@ -34,9 +34,11 @@ import warnings
 warnings.filterwarnings("ignore")
 import datetime
 
+from IPython.display import HTML
+
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, snitt_fra_data
-from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, fig_histogram_andel_jobb, fig_histogram_bedrifter, fig_histogram_deltakere, tabell_per_kontor, antall_unike_kontorer
+from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, fig_histogram_andel_jobb, fig_histogram_bedrifter, fig_histogram_deltakere, tabell_per_kontor, antall_unike_kontorer, figurtekst
 
 df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
@@ -52,7 +54,9 @@ Sist oppdatert: `{python} datetime.date.today().strftime('%d.%m.%Y')`
 #| echo: false
 totalt_oppmotte = int(aktive["oppmotte"].sum())
 totalt_jobb = int(aktive["fatt_jobb"].sum())
-antall_workop = len(aktive)
+antall_workop = int(df["har_gjennomforing"].sum())
+antall_med_resultat = len(aktive)
+antall_venter = int(df["venter_pa_forms2"].sum())
 andel = totalt_jobb / totalt_oppmotte * 100
 n_lokasjoner, n_kontorer = antall_unike_kontorer(df)
 
@@ -61,6 +65,14 @@ jobb_veiledning = int(aktive["fatt_jobb_veiledning"].sum())
 jobb_gode = int(aktive["fatt_jobb_gode"].sum())
 jobb_tiltak = int(aktive["fatt_jobb_tiltak"].sum())
 andel_jobb_tiltak = jobb_tiltak / totalt_jobb * 100
+
+# Tallene over gjennomføring (Forms 1) og resultat (Forms 2) henger ikke
+# sammen i tid: Forms 2 sendes ut omtrent fem uker etter arrangementet.
+# Resultatboksene merkes derfor med hvor mange arrangementer de bygger på.
+if antall_venter:
+    _res_suffiks = f" (av {antall_med_resultat} med resultat)"
+else:
+    _res_suffiks = ""
 
 from IPython.display import HTML
 
@@ -80,8 +92,8 @@ html = f"""
 <div style="display:flex; gap:2rem; flex-wrap:wrap; margin:1.5rem 0;">
   {_boks(antall_workop, "WorkOp-er gjennomført", *blaa)}
   {_boks(n_kontorer, f"Nav-kontorer ({n_lokasjoner} lokasjoner)", *blaa)}
-  {_boks(totalt_oppmotte, "Totalt oppmøtte", *blaa)}
-  {_boks(totalt_jobb, "Fikk jobb", *gronn)}
+  {_boks(totalt_oppmotte, "Totalt oppmøtte" + _res_suffiks, *blaa)}
+  {_boks(totalt_jobb, "Fikk jobb" + _res_suffiks, *gronn)}
   {_boks(f"{andel:.0f}%", "Andel fikk jobb", *gronn)}
   {_boks(f"{andel_jobb_tiltak:.0f}%", "Andel som fikk jobb med tiltak", *gronn)}
 </div>
@@ -97,6 +109,25 @@ html = f"""
 HTML(html)
 ```
 
+```{python}
+#| echo: false
+#| output: asis
+# Forklarer differansen mellom gjennomførte og ferdig målte arrangementer.
+# Skrives bare ut når vi faktisk venter på svar.
+if antall_venter:
+    _arr = "arrangement" if antall_venter == 1 else "arrangementer"
+    print(
+        f"::: {{.callout-note appearance='simple'}}\n"
+        f"Resultatdata foreligger for {antall_med_resultat} av {antall_workop} "
+        f"gjennomførte arrangementer. Vi venter på oppfølgingssvar for "
+        f"{antall_venter} {_arr} — og oppfølgingsskjemaet i forms 2 skal fylles "
+        f"ut fem uker etter gjennomføring. Alle tall om jobb og andeler under er "
+        f"regnet ut fra de {antall_med_resultat} arrangementene som har "
+        f"resultat. Se [datagrunnlaget](data.qmd) for detaljer per arrangement.\n"
+        f":::\n"
+    )
+```
+
 ## Programvekst per kvartal
 
 Kvartalsvis aggregering av oppmøtte og antall som fikk jobb. Viser hvordan WorkOp
@@ -105,6 +136,9 @@ har vokst over tid.
 ```{python}
 #| echo: false
 fig_deltakere_jobb_tid(df).show()
+display(HTML(figurtekst(
+    "Hver søyle er ett kvartal. Høyden viser hvor mange som møtte opp, "
+    "og den mørke delen hvor mange av dem som fikk jobb.", df)))
 ```
 
 ## Kumulativ utvikling
@@ -112,6 +146,9 @@ fig_deltakere_jobb_tid(df).show()
 ```{python}
 #| echo: false
 fig_kumulativ(df).show()
+display(HTML(figurtekst(
+    "Linjene viser hvordan det samlede antallet deltakere og jobber vokser "
+    "etter hvert som flere arrangementer gjennomføres.", df)))
 ```
 
 ## Fordeling: antall som fikk jobb per WorkOp
@@ -119,6 +156,9 @@ fig_kumulativ(df).show()
 ```{python}
 #| echo: false
 fig_histogram_jobb(df).show()
+display(HTML(figurtekst(
+    "Hver rute er ett arrangement, plassert etter hvor mange som fikk jobb. "
+    "Den stiplede linjen viser gjennomsnittet.", df)))
 ```
 
 ## Fordeling: andel som fikk jobb per WorkOp
@@ -126,6 +166,9 @@ fig_histogram_jobb(df).show()
 ```{python}
 #| echo: false
 fig_histogram_andel_jobb(df).show()
+display(HTML(figurtekst(
+    "Samme arrangementer som over, men sortert etter hvor stor andel av "
+    "deltakerne som fikk jobb.", df)))
 ```
 
 ## Fordeling: antall bedrifter per WorkOp
@@ -133,6 +176,9 @@ fig_histogram_andel_jobb(df).show()
 ```{python}
 #| echo: false
 fig_histogram_bedrifter(df).show()
+display(HTML(figurtekst(
+    "Hver rute er ett arrangement, plassert etter hvor mange bedrifter som "
+    "deltok.", antall=int(aktive["arbeidsgivere"].notna().sum()))))
 ```
 
 ## Fordeling: deltakere på forberedende og oppmøtte
@@ -142,7 +188,10 @@ fig_histogram_bedrifter(df).show()
 
 figur_histogram_deltakere, notat = fig_histogram_deltakere(df)
 figur_histogram_deltakere.show()
-print(notat)
+display(HTML(figurtekst(
+    "Venstre side viser oppmøtet på den forberedende workshopen, høyre side "
+    "oppmøtet på selve WorkOp-en. "
+    + (notat + "." if notat else ""), df)))
 ```
 
 ## Innsatsgrupper blant de som fikk jobb
@@ -150,11 +199,17 @@ print(notat)
 ```{python}
 #| echo: false
 fig_innsatsgrupper_totalt(df).show()
+display(HTML(figurtekst(
+    "Søylene viser hvor mange av dem som fikk jobb som tilhørte hver "
+    "innsatsgruppe.", df)))
 ```
 
 ```{python}
 #| echo: false
 fig_innsatsgrupper_kake(df).show()
+display(HTML(figurtekst(
+    "Samme tall som søylediagrammet over, vist som andeler av alle som fikk "
+    "jobb.", df)))
 ```
 
 Ukjent innsatsgruppe er der delkategoriene ikke summerer til totalen —
@@ -167,7 +222,7 @@ typisk eldre registreringer der innsatsgruppe ikke ble ført.
 kontor_df = tabell_per_kontor(df)
 n_lok = len(kontor_df)
 n_uten = int(aktive["nav_kontor"].isna().sum())
-note = f" ({n_uten} WorkOps uten registrert lokasjon er utelatt)" if n_uten else ""
+note = f" ({n_uten} arrangementer uten registrert lokasjon er utelatt)" if n_uten else ""
 print(f"{n_lok} lokasjoner har gjennomført WorkOp{note}. Noen lokasjoner er samarbeid mellom flere Nav-kontorer.")
 display(
     kontor_df.style
