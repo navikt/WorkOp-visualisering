@@ -23,7 +23,7 @@ e-post til Brynjar** med endringen, så rettes tallet manuelt.
 
 ::: {.callout-tip appearance="simple"}
 ## Eksempel på endringsmelding
-**Til:** `brynjar.morka.maehlum@nav.no`
+**Til:** `brynjar.morka.mehlum@nav.no`
 
 **Emne:** Endring i WorkOp 31.10.2030 Øvre Romerike
 
@@ -81,5 +81,5 @@ Velg enten ett av kontorene, eller velg «Annet» og skriv inn alle kontorene so
 # Kontakt
 
 Fant du ikke svaret, eller ønsker du en endring? Ta kontakt med Brynjar Morka
-Mæhlum i team Nav Ung — på Teams, Slack eller mail, `brynjar.morka.maehlum@nav.no`.
+Mæhlum i team Nav Ung — på Teams, Slack eller mail, `brynjar.morka.mehlum@nav.no`.
 Vi tar gjerne imot forslag til forbedringer av spørsmålene og skjemaene.

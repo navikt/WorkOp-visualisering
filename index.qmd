@@ -268,4 +268,4 @@ I fremtidige analyser vil det være hensiktsmessig å bruke registerdata for å 
 
 # Kontakt
 
-For spørsmål om innholdet i dette dashbordet kan du ta kontakt med Brynjar Morka Mæhlum i team Nav Ung. Enten på Teams, Slack eller mail, `brynjar.morka.maehlum@nav.no`.
+For spørsmål om innholdet i dette dashbordet kan du ta kontakt med Brynjar Morka Mæhlum i team Nav Ung. Enten på Teams, Slack eller mail, `brynjar.morka.mehlum@nav.no`.
