@@ -9,10 +9,35 @@ applyTo: "**/*.py"
 | Modul | Ansvar |
 |-------|--------|
 | `extract.py` | Leser og normaliserer Forms-CSV. Returnerer `(df, warnings)` |
+| `kontorer.py` | Oppslag fra lokasjon til Nav-kontor og fylke, via `lister/` |
 | `transform.py` | Avledede kolonner, historiske snitt, fremskrivning, bootstrap |
 | `plots.py` | Rene figurfunksjoner: `df -> go.Figure`. Ingen datainnlesing |
 
 Hold laget rent: ingen filinnlesing i `plots.py`, ingen plotting i `extract.py`.
+`kontorer.py` er det eneste stedet som leser `lister/`.
+
+## kontorer.py — lokasjon, kontor og fylke
+
+Lokasjonen i Forms er ikke alltid et kontornavn. Noen arrangementer er samarbeid
+mellom flere kontorer, og noen bruker en kortform. Oppslaget går i to hopp:
+
+```
+nav_kontor (Forms)  →  lister/lokasjon-kontor.csv  →  lister/kontor-fylke.csv
+```
+
+Lokasjoner som allerede heter det samme som kontoret trenger ingen rad i den
+første fila. `kontor-fylke.csv` er ren kontorfasit og skal ikke endres for å
+passe en skrivemåte fra Forms — legg heller inn en oversettelse i
+`lokasjon-kontor.csv`.
+
+**Ukjent lokasjon er en feil, ikke en advarsel.** `extract_all()` kaller
+`valider_lokasjoner()` og kaster `LokasjonError`. Det er med vilje: et kontor
+som telles feil blir et stille galt tall i en figur, og det er verre enn at
+`just extract` stopper. Ikke myk dette opp til en advarsel.
+
+**Kontorer telles som et sett, ikke som en sum.** Et kontor kan ha arrangert
+både alene og sammen med naboene — `Gamle Oslo` er et eksempel. `unike_kontorer()`
+håndterer det.
 
 ## Konvensjoner
 

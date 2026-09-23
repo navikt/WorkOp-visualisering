@@ -13,7 +13,13 @@ data/*.csv (Forms)  →  extract.py  →  transform.py  →  plots.py  →  *.qm
                        les og         avledede         Plotly-       sider     bygget
                        normaliser     kolonner,        figurer                 nettsted
                                       fremskrivning
+
+lister/*.csv        →  kontorer.py  →  extract.py (validering) + transform.py (fylke)
 ```
+
+`lister/` er fasit for hvilke Nav-kontorer og hvilket fylke en lokasjon hører
+til. En lokasjon som ikke finnes der stopper `just extract` med `LokasjonError` —
+det er med vilje, se instruksjonsfila for Python.
 
 Alt kjøres via `just`. Avhengigheter håndteres med `uv` — bruk aldri `pip install`
 direkte, og rediger aldri `uv.lock` manuelt.
