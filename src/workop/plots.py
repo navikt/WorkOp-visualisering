@@ -23,6 +23,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from src.workop.kontorer import unike_kontorer
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _palett_raw = json.loads((_REPO_ROOT / "palett.json").read_text())
 PALETT = {k: v["hex"] for k, v in _palett_raw.items()}
@@ -34,27 +36,19 @@ def _rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r}, {g}, {b}, {alpha})"
 
 
-# Antall faktiske Nav-kontorer per lokasjon (der samarbeid gir >1)
-KONTORER_PER_LOKASJON: dict[str, int] = {
-    "Øvre Romerike": 4,
-    "Falkenborg/Lerkendal": 2,
-    "Kongsberg/Øvre Eiker": 2,
-    "Skaun Melhus": 2,
-}
-
-
 def antall_unike_kontorer(df: pd.DataFrame) -> tuple[int, int]:
     """
     Returnerer (antall lokasjoner, antall faktiske Nav-kontorer).
 
     Teller gjennomførte arrangementer, ikke bare de med resultat — et kontor har
     arrangert WorkOp selv om Forms 2 ikke er besvart ennå.
+
+    Kontorene telles som et sett, ikke som en sum per lokasjon. Et kontor kan ha
+    arrangert både alene og sammen med naboene, og skal da telles én gang.
     """
-    aktive = df[df["har_gjennomforing"]].copy()
+    aktive = df[df["har_gjennomforing"]]
     lokasjoner = aktive["nav_kontor"].dropna().unique().tolist()
-    n_lokasjoner = len(lokasjoner)
-    n_kontorer = sum(KONTORER_PER_LOKASJON.get(lok, 1) for lok in lokasjoner)
-    return n_lokasjoner, n_kontorer
+    return len(lokasjoner), len(unike_kontorer(lokasjoner))
 
 
 def tabell_per_kontor(df: pd.DataFrame) -> pd.DataFrame:

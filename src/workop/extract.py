@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.workop.kontorer import valider_lokasjoner
+
 # ---------------------------------------------------------------------------
 # Standardstier
 # ---------------------------------------------------------------------------
@@ -594,6 +596,11 @@ def extract_all(
         "har_gjennomforing", "har_data", "venter_pa_forms2",
     ]
     df = df[output_cols]
+
+    # Stopper her framfor å la en ukjent lokasjon bli et stille feiltall i en
+    # figur. Ser bare på gjennomførte arrangementer — placeholder-rader uten
+    # lokasjon skal ikke utløse feil.
+    valider_lokasjoner(df.loc[df["har_gjennomforing"], "nav_kontor"].tolist())
 
     return df, warns
 
