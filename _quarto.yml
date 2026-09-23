@@ -4,6 +4,7 @@ project:
   render: 
     - index.qmd
     - arbeidsgivere.qmd
+    - fylker.qmd
     - fremskrivning.qmd
     - manuelle-tall.qmd
     - data.qmd
@@ -17,6 +18,8 @@ website:
         text: Oversikt
       - href: arbeidsgivere.qmd
         text: Arbeidsgivere
+      - href: fylker.qmd
+        text: Fylker
       - href: manuelle-tall.qmd
         text: Manuelle tall
       - href: fremskrivning.qmd

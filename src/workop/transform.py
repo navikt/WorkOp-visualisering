@@ -12,6 +12,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.workop.kontorer import fylke_for_lokasjon
+
 # ---------------------------------------------------------------------------
 # Estimeringsparametere — juster etter behov
 # ---------------------------------------------------------------------------
@@ -36,6 +38,7 @@ def legg_til_kalkulerte_kolonner(df: pd.DataFrame) -> pd.DataFrame:
 
     Nye kolonner:
       - andel_jobb      : fatt_jobb / oppmotte (0.0–1.0)
+      - fylke           : fylket lokasjonen hører til (se kontorer.py)
       - kumulativ_oppmotte: løpende sum oppmøtte (sortert på dato/workop_nr)
       - kumulativ_fatt_jobb: løpende sum fått jobb
     """
@@ -43,6 +46,12 @@ def legg_til_kalkulerte_kolonner(df: pd.DataFrame) -> pd.DataFrame:
 
     # Andel som fikk jobb
     df["andel_jobb"] = df["fatt_jobb"] / df["oppmotte"]
+
+    # Fylke via lister/ — extract_all() har allerede validert lokasjonene, så
+    # her skal alle oppslag gå gjennom. Rader uten lokasjon får NA.
+    df["fylke"] = df["nav_kontor"].map(
+        lambda lok: fylke_for_lokasjon(lok) if pd.notna(lok) else pd.NA
+    )
 
     # Kumulativ beregning — sortert på dato for korrekt kronologisk rekkefølge
     df = df.sort_values("dato", na_position="last").reset_index(drop=True)

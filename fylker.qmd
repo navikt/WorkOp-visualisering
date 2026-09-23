@@ -1,0 +1,148 @@
+---
+title: "Resultater per fylke"
+---
+
+Denne siden bryter ned WorkOp-resultatene på fylke, slik at hvert fylke kan se
+sine egne tall og sammenlikne seg med andre.
+
+```{python}
+#| echo: false
+#| output: false
+import warnings
+warnings.filterwarnings("ignore")
+
+import pandas as pd
+from IPython.display import HTML
+
+from src.workop.extract import extract_all
+from src.workop.transform import legg_til_kalkulerte_kolonner
+from src.workop.plots import (
+    fig_fylke_andel,
+    fig_fylke_sammenlikning,
+    figurtekst,
+    tabell_per_fylke,
+)
+
+df_raw, _ = extract_all()
+df = legg_til_kalkulerte_kolonner(df_raw)
+
+gjennomfort = df[df["har_gjennomforing"] & df["fylke"].notna()].copy()
+fylker = sorted(gjennomfort["fylke"].unique())
+```
+
+## Sammenlikn fylker
+
+```{python}
+#| echo: false
+fig_fylke_sammenlikning(df).show()
+display(HTML(figurtekst(
+    "Søylene viser oppmøtte og antall som fikk jobb i hvert fylke, "
+    "med flest i jobb øverst. Prosenten står ved den blå søylen. Klikk i "
+    "tegnforklaringen for å skjule en av søylene.",
+    df,
+)))
+```
+
+Antallet forteller hvor mange arrangementer som er avholdt, ikke hvor godt de
+traff. Figuren under viser derfor andelen for seg, slik at fylker med få
+arrangementer kan sammenliknes med de større.
+
+```{python}
+#| echo: false
+fig_fylke_andel(df).show()
+display(HTML(figurtekst(
+    "Søylene viser hvor stor andel av de oppmøtte som fikk jobb i hvert fylke, "
+    "med høyest andel øverst. Den stiplede linjen er snittet for hele landet.",
+    df,
+)))
+```
+
+```{python}
+#| echo: false
+display(tabell_per_fylke(df).style.format({"Andel (%)": "{:.1f}"}).hide(axis="index"))
+```
+
+**Arrangementer** teller alt som er gjennomført, mens **Med resultat** teller de
+som har svart på oppfølgingsskjemaet. Oppmøtte, fått jobb og andel er regnet ut
+fra de sistnevnte. Fylker med få arrangementer får store utslag av
+enkeltresultater — se antallet før du sammenlikner andeler.
+
+## Ditt fylke
+
+Velg fylke i fanene under for å se nøkkeltall og alle arrangementene der.
+
+```{python}
+#| echo: false
+#| output: asis
+
+def _boks(verdi, tekst, bg, kant, farge):
+    return (
+        f'<div style="background:{bg}; border-left:4px solid {kant}; '
+        f'padding:0.8rem 1.2rem; border-radius:4px; min-width:130px;">'
+        f'<div style="font-size:1.6rem; font-weight:700; color:{farge};">{verdi}</div>'
+        f'<div style="color:#555; font-size:0.85rem;">{tekst}</div></div>'
+    )
+
+BLAA = ("#E9F9FF", "#00BDFF", "#004A6B")
+GRONN = ("#E7FFEC", "#11FF42", "#0A6B20")
+
+KOLONNER = {
+    "workop_nr": "WorkOp",
+    "dato_vist": "Dato",
+    "nav_kontor": "Lokasjon",
+    "status": "Status",
+    "oppmotte": "Oppmøtte",
+    "fatt_jobb": "Fikk jobb",
+    "andel_vist": "Andel",
+}
+
+print("::: {.panel-tabset}\n")
+
+for fylke in fylker:
+    rader = gjennomfort[gjennomfort["fylke"] == fylke].sort_values("workop_nr")
+    med_resultat = rader[rader["har_data"]]
+
+    oppmotte = int(med_resultat["oppmotte"].sum())
+    jobb = int(med_resultat["fatt_jobb"].sum())
+    andel = jobb / oppmotte * 100 if oppmotte else 0
+
+    # Antall arrangementer teller alle gjennomførte, mens jobbtallene bare
+    # gjelder de som har svart på oppfølgingsskjemaet.
+    bokser = [
+        _boks(len(rader), "Arrangementer", *BLAA),
+        _boks(len(med_resultat), "Med resultat", *BLAA),
+        _boks(oppmotte, "Oppmøtte", *BLAA),
+        _boks(jobb, "Fikk jobb", *GRONN),
+        _boks(f"{andel:.0f}%", "Andel fikk jobb", *GRONN),
+    ]
+
+    vis = rader.copy()
+    vis["dato_vist"] = vis["dato"].dt.strftime("%d.%m.%Y").fillna("—")
+    vis["status"] = vis["venter_pa_forms2"].map({True: "Venter på resultater", False: "✅"})
+    vis["andel_vist"] = vis["andel_jobb"].map(lambda a: "—" if pd.isna(a) else f"{a:.0%}")
+    vis = vis[list(KOLONNER)].rename(columns=KOLONNER)
+
+    tabell = (
+        vis.style
+        .format({"Oppmøtte": "{:.0f}", "Fikk jobb": "{:.0f}"}, na_rep="—")
+        .hide(axis="index")
+        .set_table_attributes('class="table table-sm"')
+        .to_html()
+    )
+
+    print(f"### {fylke}\n")
+    print(
+        '<div style="display:flex; gap:1rem; flex-wrap:wrap; margin:1rem 0 1.5rem 0;">'
+        + "".join(bokser)
+        + "</div>\n"
+    )
+    print(tabell + "\n")
+
+print(":::\n")
+```
+
+Arrangementer som nettopp er gjennomført står med «Venter på resultater» og har
+tomme resultatkolonner. Oppfølgingsskjemaet sendes ut omtrent fem uker etter
+gjennomføring, så det tar litt tid før tallene er på plass.
+
+Se [datagrunnlaget](data.qmd) for alle kolonnene per arrangement.

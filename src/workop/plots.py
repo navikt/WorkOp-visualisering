@@ -51,6 +51,144 @@ def antall_unike_kontorer(df: pd.DataFrame) -> tuple[int, int]:
     return len(lokasjoner), len(unike_kontorer(lokasjoner))
 
 
+def tabell_per_fylke(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggregert tabell per fylke, sortert på antall som fikk jobb.
+
+    Arrangementer telles på `har_gjennomforing`, mens oppmøtte, jobbtall og
+    andel regnes på `har_data`. Et fylke kan derfor ha flere arrangementer enn
+    det har resultater for — kolonnen «Med resultat» viser forskjellen.
+    """
+    gjennomfort = df[df["har_gjennomforing"] & df["fylke"].notna()]
+
+    antall = gjennomfort.groupby("fylke")["workop_nr"].count()
+    med_resultat = df[df["har_data"] & df["fylke"].notna()].groupby("fylke")
+    summer = med_resultat.agg(
+        med_resultat=("workop_nr", "count"),
+        oppmotte=("oppmotte", "sum"),
+        fatt_jobb=("fatt_jobb", "sum"),
+    )
+
+    grp = pd.concat([antall.rename("antall_workop"), summer], axis=1).fillna(0)
+    heltall = ["antall_workop", "med_resultat", "oppmotte", "fatt_jobb"]
+    grp[heltall] = grp[heltall].astype(int)
+    grp["andel"] = (grp["fatt_jobb"] / grp["oppmotte"] * 100).round(1)
+    grp = grp.sort_values("fatt_jobb", ascending=False).reset_index()
+
+    grp.columns = [
+        "Fylke", "Arrangementer", "Med resultat", "Oppmøtte", "Fått jobb", "Andel (%)",
+    ]
+    return grp
+
+
+def fig_fylke_sammenlikning(df: pd.DataFrame, fylker: list[str] | None = None) -> go.Figure:
+    """
+    Liggende søyler per fylke: oppmøtte mot antall som fikk jobb.
+
+    Args:
+        df: datasettet med `fylke`-kolonne fra transform.
+        fylker: begrens til et utvalg fylker. None betyr alle.
+
+    Sortert med flest i jobb øverst. Bare arrangementer med resultat teller,
+    siden figuren viser jobbtall.
+    """
+    tabell = tabell_per_fylke(df)
+    if fylker:
+        tabell = tabell[tabell["Fylke"].isin(fylker)]
+    tabell = tabell.sort_values("Fått jobb")  # stigende → flest øverst
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=tabell["Oppmøtte"],
+            y=tabell["Fylke"],
+            orientation="h",
+            name="Oppmøtte",
+            marker_color=FARGE_OPPMOTTE,
+            hovertemplate="%{y}<br>Oppmøtte: %{x}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            x=tabell["Fått jobb"],
+            y=tabell["Fylke"],
+            orientation="h",
+            name="Fikk jobb",
+            marker_color=FARGE_JOBB,
+            customdata=tabell["Andel (%)"],
+            text=[f"{a:.0f} %" for a in tabell["Andel (%)"]],
+            textposition="outside",
+            textfont_size=11,
+            cliponaxis=False,
+            hovertemplate="%{y}<br>Fikk jobb: %{x} (%{customdata} %)<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Oppmøtte og antall som fikk jobb per fylke",
+        xaxis_title="Antall personer",
+        yaxis_title=None,
+        barmode="group",
+        legend=_LEGEND_BUNN,
+        margin={"t": 70, "b": 80, "l": 160, "r": 70},
+        height=max(380, len(tabell) * 58 + 140),
+        xaxis_range=[0, tabell["Oppmøtte"].max() * 1.08],
+    )
+    return fig
+
+
+def fig_fylke_andel(df: pd.DataFrame) -> go.Figure:
+    """
+    Liggende søyler: andel av de oppmøtte som fikk jobb, per fylke.
+
+    Sortert med høyest andel øverst, og med en stiplet linje for landssnittet.
+    Andeler fra fylker med få arrangementer svinger mye, så antall arrangementer
+    ligger i hover-teksten som kontekst.
+    """
+    tabell = tabell_per_fylke(df).sort_values("Andel (%)")  # stigende → høyest øverst
+
+    aktive = df[df["har_data"]]
+    landssnitt = aktive["fatt_jobb"].sum() / aktive["oppmotte"].sum() * 100
+
+    fig = go.Figure(
+        go.Bar(
+            x=tabell["Andel (%)"],
+            y=tabell["Fylke"],
+            orientation="h",
+            marker_color=FARGE_JOBB,
+            text=[f"{a:.0f} %" for a in tabell["Andel (%)"]],
+            textposition="outside",
+            customdata=tabell[["Fått jobb", "Oppmøtte", "Med resultat"]].values,
+            hovertemplate=(
+                "%{y}<br>"
+                "Andel: %{x:.1f} %<br>"
+                "%{customdata[0]} av %{customdata[1]} oppmøtte<br>"
+                "Bygger på %{customdata[2]} arrangementer<extra></extra>"
+            ),
+        )
+    )
+    fig.add_vline(
+        x=landssnitt,
+        line_dash="dash",
+        line_color=PALETT["Lilla"],
+        line_width=2,
+        annotation_text=f"Hele landet: {landssnitt:.0f} %",
+        annotation_position="top right",
+        annotation_font_size=13,
+    )
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title="Andel av de oppmøtte som fikk jobb, per fylke",
+        xaxis_title="Andel som fikk jobb (%)",
+        yaxis_title=None,
+        showlegend=False,
+        margin={"t": 70, "b": 50, "l": 170, "r": 70},
+        height=max(380, len(tabell) * 44 + 140),
+        xaxis_range=[0, max(tabell["Andel (%)"].max(), landssnitt) * 1.18],
+    )
+    return fig
+
+
 def tabell_per_kontor(df: pd.DataFrame) -> pd.DataFrame:
     """Aggregert tabell: Nav-kontor | Antall WOs | Oppmøtte | Fått jobb | Andel."""
     aktive = df[df["har_data"]].copy()

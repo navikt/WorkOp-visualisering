@@ -30,6 +30,8 @@ Arrangementer som nettopp er gjennomført står med status «Venter på resultat
 og har tomme resultatkolonner. Oppfølgingsskjemaet sendes ut omtrent fem uker
 etter gjennomføring, så det tar litt tid før resultatene er på plass.
 
+*Obs! du kan scrolle til høyre i tabellen*
+
 ```{python}
 #| echo: false
 df_raw, warnings_list = extract_all()
@@ -43,7 +45,7 @@ gjennomfort["status"] = gjennomfort["venter_pa_forms2"].map(
 
 # Velg visningskolonner
 vis = gjennomfort[[
-    "workop_nr", "dato", "nav_kontor", "status",
+    "workop_nr", "dato", "nav_kontor", "fylke", "status",
     "oppmotte", "deltakere_f2",
     "aktuell_ordinaer_stilling",
     "fatt_jobb", "jobb_hos_wo_ag", "jobb_annen_ag",
@@ -61,7 +63,7 @@ mask = vis["deltakere_f2"].notna() & vis["oppmotte"].notna() & (vis["oppmotte"] 
 vis.loc[mask, "diff_oppmotte"] = "⚠️"
 
 vis.columns = [
-    "WO", "Dato", "Lokasjon", "Status",
+    "WO", "Dato", "Lokasjon", "Fylke", "Status",
     "Deltakere (F1)", "Deltakere (F2)",
     "Aktuell for stilling",
     "Fått jobb", "Jobb WO-AG", "Jobb annen AG",

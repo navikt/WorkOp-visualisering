@@ -74,10 +74,15 @@ Fremskrivningen bruker parametere i `src/workop/transform.py`:
 ├── index.qmd            # Oversikt: KPI, kvartalsvis trend, kontor-tabell
 ├── fremskrivning.qmd    # Fremskrivning med bootstrap-usikkerhet
 ├── arbeidsgivere.qmd    # Bransje og bedriftsstørrelse
+├── fylker.qmd           # Resultater per fylke, med faner per fylke
 ├── src/workop/
 │   ├── extract.py       # Les og normaliser data fra Forms CSV
+│   ├── kontorer.py      # Lokasjon → Nav-kontor → fylke (leser lister/)
 │   ├── transform.py     # Beregninger og fremskrivning
 │   └── plots.py         # Plotly-figurer og kontor-tabell
+├── lister/
+│   ├── lokasjon-kontor.csv  # Lokasjon → ett eller flere kontornavn
+│   └── kontor-fylke.csv     # Kontor → fylke
 ├── data/                # CSV-filer fra Forms (ikke på GitHub)
 ├── notebooks/
 │   └── eksperimentering.py  # Jupytext-sandkasse
