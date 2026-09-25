@@ -27,7 +27,7 @@ Data samles inn i to steg per WorkOp-arrangement:
 2. Lagre som CSV i `data/`:
    - `data/Rett etter gjennomføring av WorkOp.csv`
    - `data/Hvor mange fikk jobb etter WorkOp.csv`
-3. Kjør `just render` for å bygge oppdatert nettside
+3. Kjør `just render` for å bygge oppdatert nettside. OBS! Husk å legge til tall for WO-nummer, ellers vises de ikke
 
 Gjennomføringsskjemaet leses på kolonnenavn, så nye spørsmål kan legges til i
 Forms uten at uttrekket brekker. Fritekstsvar hentes bevisst ikke ut — nettsiden
