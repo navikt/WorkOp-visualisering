@@ -38,7 +38,7 @@ from IPython.display import HTML
 
 from src.workop.extract import extract_all
 from src.workop.transform import legg_til_kalkulerte_kolonner, snitt_fra_data
-from src.workop.plots import fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, fig_histogram_andel_jobb, fig_histogram_bedrifter, fig_histogram_deltakere, tabell_per_kontor, antall_unike_kontorer, figurtekst
+from src.workop.plots import fig_arrangementer_per_aar, fig_deltakere_jobb_tid, fig_kumulativ, fig_innsatsgrupper_totalt, fig_innsatsgrupper_kake, fig_histogram_jobb, fig_histogram_andel_jobb, fig_histogram_bedrifter, fig_histogram_deltakere, tabell_per_kontor, antall_unike_kontorer, figurtekst
 
 df_raw, missing = extract_all()
 df = legg_til_kalkulerte_kolonner(df_raw)
@@ -126,6 +126,17 @@ if antall_venter:
         f"resultat. Se [datagrunnlaget](data.qmd) for detaljer per arrangement.\n"
         f":::\n"
     )
+```
+
+## Antall arrangementer per år
+
+```{python}
+#| echo: false
+fig_arrangementer_per_aar(df).show()
+display(HTML(figurtekst(
+    "Hver søyle viser hvor mange WorkOp-arrangementer som ble avholdt det året. "
+    "Den lilla delen er arrangementer der vi ennå venter på resultatene.",
+    antall=int(df["har_gjennomforing"].sum()))))
 ```
 
 ## Programvekst per kvartal

@@ -914,6 +914,98 @@ def fig_metode_etterlevelse(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def tabell_arrangementer_per_aar(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Antall gjennomførte arrangementer per år, delt på om resultatet foreligger.
+
+    Teller på `har_gjennomforing`, altså alle avholdte arrangementer. Året
+    hentes fra `dato`, med `fallback_year` for rader som mangler dato.
+    """
+    gjennomfort = df[df["har_gjennomforing"]].copy()
+
+    aar = gjennomfort["dato"].dt.year
+    if "fallback_year" in gjennomfort.columns:
+        aar = aar.fillna(gjennomfort["fallback_year"])
+    gjennomfort = gjennomfort[aar.notna()]
+    gjennomfort["aar"] = aar[aar.notna()].astype(int)
+
+    grp = (
+        gjennomfort.groupby("aar")
+        .agg(
+            med_resultat=("har_data", "sum"),
+            venter=("venter_pa_forms2", "sum"),
+        )
+        .reset_index()
+        .sort_values("aar")
+    )
+    grp[["med_resultat", "venter"]] = grp[["med_resultat", "venter"]].astype(int)
+    grp["totalt"] = grp["med_resultat"] + grp["venter"]
+
+    grp.columns = ["År", "Med resultat", "Venter på resultat", "Totalt"]
+    return grp
+
+
+def fig_arrangementer_per_aar(df: pd.DataFrame) -> go.Figure:
+    """
+    Stablet søylediagram: antall gjennomførte WorkOp-arrangementer per år.
+
+    Laget for rapportering, så figuren viser antall avholdte arrangementer og
+    ikke resultater. Søylene deles i to slik at det synes hvilke arrangementer
+    som fortsatt venter på oppfølgingsskjemaet.
+    """
+    tabell = tabell_arrangementer_per_aar(df)
+    aar = tabell["År"].tolist()
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=aar,
+            y=tabell["Med resultat"],
+            name="Med resultat",
+            marker_color=FARGE_JOBB_STERK,
+            hovertemplate="%{x}: %{y} arrangementer med resultat<extra></extra>",
+        )
+    )
+    if tabell["Venter på resultat"].sum() > 0:
+        fig.add_trace(
+            go.Bar(
+                x=aar,
+                y=tabell["Venter på resultat"],
+                name="Venter på resultat",
+                marker_color=PALETT["Mellom Lilla"],
+                hovertemplate="%{x}: %{y} venter på resultat<extra></extra>",
+            )
+        )
+
+    # Totalen står over hele stabelen, slik at rapporteringstallet er lett å lese
+    fig.add_trace(
+        go.Scatter(
+            x=aar,
+            y=tabell["Totalt"],
+            mode="text",
+            text=[str(n) for n in tabell["Totalt"]],
+            textposition="top center",
+            textfont={"size": 13},
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        barmode="stack",
+        title="Antall gjennomførte WorkOp-arrangementer per år",
+        xaxis_title=None,
+        yaxis_title="Antall arrangementer",
+        legend=_LEGEND_BUNN,
+        margin=_MARGIN,
+        height=420,
+        xaxis={"type": "category"},
+        yaxis_range=[0, max(tabell["Totalt"].max() * 1.15, 1)],
+    )
+    return fig
+
+
 def fig_bransje(df_ag: pd.DataFrame) -> go.Figure:
     """
     Horisontal søylediagram: antall arbeidsgiverbesøk per normalisert bransje.
