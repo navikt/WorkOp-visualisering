@@ -19,7 +19,7 @@ from src.workop.kontorer import valider_lokasjoner
 # Standardstier
 # ---------------------------------------------------------------------------
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-FORMS1_CSV = DATA_DIR / "Rett etter gjennomføring av WorkOp.csv"
+FORMS1_CSV = DATA_DIR / "Rett etter gjennomføring av WorkOp(Sheet1).csv"
 FORMS2_CSV = DATA_DIR / "Hvor mange fikk jobb etter WorkOp.csv"
 
 # Grense for semantikk-skift: WO ≤ denne verdien bruker kol9 som total fått jobb

@@ -25,7 +25,7 @@ Data samles inn i to steg per WorkOp-arrangement:
 
 1. Last ned begge Forms-svar som Excel fra SharePoint
 2. Lagre som CSV i `data/`:
-   - `data/Rett etter gjennomføring av WorkOp.csv`
+   - `data/Rett etter gjennomføring av WorkOp(Sheet1).csv`
    - `data/Hvor mange fikk jobb etter WorkOp.csv`
 3. Kjør `just render` for å bygge oppdatert nettside. OBS! Husk å legge til tall for WO-nummer, ellers vises de ikke
 
