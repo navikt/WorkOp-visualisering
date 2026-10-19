@@ -66,24 +66,36 @@ spørsmål, derfor nøkkelordet `trenger veiledning"?`.
 Forms 2 leses fortsatt på indeks, med `FORMS2_SKJEMA` + `_sjekk_skjema()` som
 vaktpost. Endrer du indeksene der, må tabellen oppdateres samtidig.
 
-**2. Fritekst skal aldri ut av Forms.**
+**2. Forms 2 kobles til Forms 1 på dato og Nav-kontor, ikke WO-nummer.**
+WO-nummeret settes etter innsendingstidspunkt i hvert skjema og er ikke
+synkronisert mellom dem. `_koble_forms2_til_forms1()` henter derfor
+`workop_nr` fra raden i Forms 1 med samme dato og Nav-kontor. Forms 1-nummeret
+er fasit. Bare når datoen ikke kan tolkes i ett av skjemaene, kobles det på
+WO-nummer og Nav-kontor, med en advarsel.
+
+Et Forms 2-svar som ikke finner noen rad, treffer flere rader, eller deler rad
+med et annet svar, gir `Forms2KoblingError`. Som med `LokasjonError` er det med
+vilje: ikke myk det opp til en advarsel. Feilmeldingen viser dato og kontor, og
+rettes i Forms eller CSV-en.
+
+**3. Fritekst skal aldri ut av Forms.**
 Dashbordet er offentlig. Fritekstsvar (f.eks. «Har du noen forslag til endring i
 metoden …») hentes bevisst ikke ut, og skal ikke legges til i `FORMS1_FELT`.
 De leses i Forms av de som gjør nærmere analyser. Flervalgsfelt uten
 personopplysninger, som `metode_etterlevelse`, er derimot greit.
 
-**3. `SEMANTIKK_GRENSE = 46` er en forretningsregel, ikke et magisk tall.**
+**4. `SEMANTIKK_GRENSE = 46` er en forretningsregel, ikke et magisk tall.**
 
 - WO ≤ 46: `jobb_hos_wo_ag` er *totalt* antall som fikk jobb
 - WO > 46: totalt = `jobb_hos_wo_ag + jobb_annen_ag`
 
 Forms-spørsmålet ble delt i to fra og med WO 47. Ikke "forenkle" bort dette.
 
-**4. `output_cols` på slutten av `extract_all()` er en allowlist.**
+**5. `output_cols` på slutten av `extract_all()` er en allowlist.**
 Kolonner som ikke står der, forsvinner stille. Legger du til en kolonne i
 `f1_data` eller `f2_data`, må den også inn i `output_cols`.
 
-**5. Datoer.**
+**6. Datoer.**
 Forms leverer `dd.mm.yyyy` (noen ganger `dd/mm/yyyy`) — begge håndteres i
 `_parse_forms_date()`. `.map()` over en parse-funksjon gir `object`-dtype, så
 resultatet må wrappes i `pd.to_datetime()`. Uten det feiler `.dt`-accessoren

@@ -27,7 +27,12 @@ Data samles inn i to steg per WorkOp-arrangement:
 2. Lagre som CSV i `data/`:
    - `data/Rett etter gjennomføring av WorkOp(Sheet1).csv`
    - `data/Hvor mange fikk jobb etter WorkOp.csv`
-3. Kjør `just render` for å bygge oppdatert nettside. OBS! Husk å legge til tall for WO-nummer, ellers vises de ikke
+3. Kjør `just render` for å bygge oppdatert nettside. OBS! Husk å legge til tall for WO-nummer i gjennomføringsskjemaet, ellers vises de ikke
+
+Oppfølgingsskjemaet kobles til gjennomføringsskjemaet på dato og Nav-kontor, ikke
+WO-nummer, fordi WO-nummeret settes etter innsendingstidspunkt i hvert skjema.
+Finnes det et oppfølgingssvar uten en gjennomføring med samme dato og kontor,
+stopper uttrekket med en feilmelding som viser hvilket svar det gjelder.
 
 Gjennomføringsskjemaet leses på kolonnenavn, så nye spørsmål kan legges til i
 Forms uten at uttrekket brekker. Fritekstsvar hentes bevisst ikke ut — nettsiden
