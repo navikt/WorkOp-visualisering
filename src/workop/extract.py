@@ -255,7 +255,7 @@ def _safe_int(value: object) -> int | None:
         return None
     try:
         return int(float(str(value).strip()))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
@@ -287,9 +287,7 @@ def _read_forms_csv(filepath: str | Path) -> pd.DataFrame:
     return df
 
 
-def _finn_kolonne(
-    cols: list[str], nokkelord: str, kilde: str, valgfri: bool = False
-) -> tuple[str | None, str | None]:
+def _finn_kolonne(cols: list[str], nokkelord: str, kilde: str, valgfri: bool = False) -> tuple[str | None, str | None]:
     """
     Finner kolonnen hvis navn inneholder nøkkelordet.
 
@@ -334,9 +332,7 @@ def _les_forms1_felt(df: pd.DataFrame) -> tuple[dict[str, pd.Series], list[str]]
     warns: list[str] = []
 
     for felt, nokkelord in FORMS1_FELT.items():
-        kolonne, advarsel = _finn_kolonne(
-            cols, nokkelord, "Forms 1", valgfri=felt in FORMS1_VALGFRIE
-        )
+        kolonne, advarsel = _finn_kolonne(cols, nokkelord, "Forms 1", valgfri=felt in FORMS1_VALGFRIE)
         if advarsel:
             warns.append(advarsel)
 
@@ -382,10 +378,7 @@ def _sjekk_skjema(cols: list[str], skjema: dict[int, str], kilde: str) -> list[s
             )
             continue
         if nokkelord not in cols[idx].lower():
-            avvik.append(
-                f"{kilde}: kolonne {idx} er '{cols[idx]}', forventet noe med "
-                f"'{nokkelord}'."
-            )
+            avvik.append(f"{kilde}: kolonne {idx} er '{cols[idx]}', forventet noe med '{nokkelord}'.")
 
     if avvik:
         avvik.append(
@@ -398,9 +391,7 @@ def _sjekk_skjema(cols: list[str], skjema: dict[int, str], kilde: str) -> list[s
 
 def _fjern_testrader(df: pd.DataFrame) -> pd.DataFrame:
     """Fjerner rader der Email, Name og Nav-kontor alle er 'test' (case-insensitive)."""
-    kontor_kol, _ = _finn_kolonne(
-        df.columns.tolist(), "nav-kontor var arrangør", "Forms"
-    )
+    kontor_kol, _ = _finn_kolonne(df.columns.tolist(), "nav-kontor var arrangør", "Forms")
     if kontor_kol is None:
         return df.copy()
 
@@ -497,20 +488,22 @@ def extract_all(
 
     # --- Forms 2: jobb-resultater ---
     f2_cols = f2.columns.tolist()
-    f2_data = pd.DataFrame({
-        "workop_nr": f2["workop_nr"],
-        "deltakere_f2": f2[f2_cols[8]].map(_safe_int),  # Deltakere (duplikat)
-        "jobb_hos_wo_ag": f2[f2_cols[9]].map(_safe_int),
-        "jobb_annen_ag": f2[f2_cols[10]].map(_safe_int),
-        "takket_nei": f2[f2_cols[11]].map(_safe_int),
-        "ansatt_med_tiltak": f2[f2_cols[12]].map(_safe_int),
-        # Innsatsgrupper for de som fikk jobb
-        "ungdomsgaranti_jobb": f2[f2_cols[13]].map(_safe_int),
-        "fatt_jobb_gode": f2[f2_cols[14]].map(_safe_int),
-        "fatt_jobb_nedsatt": f2[f2_cols[15]].map(_safe_int),
-        "fatt_jobb_veiledning": f2[f2_cols[16]].map(_safe_int),
-        "n_ag_f2": f2[f2_cols[17]].map(_safe_int),
-    })
+    f2_data = pd.DataFrame(
+        {
+            "workop_nr": f2["workop_nr"],
+            "deltakere_f2": f2[f2_cols[8]].map(_safe_int),  # Deltakere (duplikat)
+            "jobb_hos_wo_ag": f2[f2_cols[9]].map(_safe_int),
+            "jobb_annen_ag": f2[f2_cols[10]].map(_safe_int),
+            "takket_nei": f2[f2_cols[11]].map(_safe_int),
+            "ansatt_med_tiltak": f2[f2_cols[12]].map(_safe_int),
+            # Innsatsgrupper for de som fikk jobb
+            "ungdomsgaranti_jobb": f2[f2_cols[13]].map(_safe_int),
+            "fatt_jobb_gode": f2[f2_cols[14]].map(_safe_int),
+            "fatt_jobb_nedsatt": f2[f2_cols[15]].map(_safe_int),
+            "fatt_jobb_veiledning": f2[f2_cols[16]].map(_safe_int),
+            "n_ag_f2": f2[f2_cols[17]].map(_safe_int),
+        }
+    )
 
     # --- Join på workop_nr ---
     # Registrert i Forms 1 = arrangementet er gjennomført. Forms 2 sendes ut
@@ -554,9 +547,7 @@ def extract_all(
     df["title_kort"] = df["nav_kontor"].fillna("")
 
     # fallback_year beregnes fra dato (brukes i bootstrap_usikkerhet)
-    df["fallback_year"] = df["dato"].apply(
-        lambda d: d.year if pd.notna(d) else 2026
-    )
+    df["fallback_year"] = df["dato"].apply(lambda d: d.year if pd.notna(d) else 2026)
 
     # Kolonner som ikke finnes i Forms
     df["dagsverk"] = None
@@ -573,27 +564,44 @@ def extract_all(
     aktive = df[df["har_data"]]
     violations = aktive[aktive["fatt_jobb"] > aktive["oppmotte"]]
     for _, row in violations.iterrows():
-        warns.append(
-            f"WO {row['workop_nr']}: fatt_jobb ({row['fatt_jobb']}) > "
-            f"oppmotte ({row['oppmotte']})"
-        )
+        warns.append(f"WO {row['workop_nr']}: fatt_jobb ({row['fatt_jobb']}) > oppmotte ({row['oppmotte']})")
 
     # Velg kolonner i riktig rekkefølge (kompatibel med gammel API).
     # NB: dette er en allowlist — kolonner som ikke står her, forsvinner stille
     # fra resultatet. Legger du til en ny kolonne over, må den også inn her.
     output_cols = [
-        "workop_nr", "raw_title", "title_kort", "dato", "fallback_year",
+        "workop_nr",
+        "raw_title",
+        "title_kort",
+        "dato",
+        "fallback_year",
         "nav_kontor",
-        "oppmotte_forberedende", "oppmotte", "deltakere_f2", "arbeidsgivere",
-        "innkalt_intervju", "aktuell_ordinaer_stilling", "metode_etterlevelse",
-        "fatt_jobb", "fatt_jobb_tiltak", "fatt_jobb_nedsatt",
-        "fatt_jobb_veiledning", "fatt_jobb_gode",
-        "jobb_hos_wo_ag", "jobb_annen_ag", "takket_nei", "ansatt_med_tiltak",
-        "ungdomsgaranti_oppmotte", "innsats_gode_oppmotte",
-        "innsats_nedsatt_oppmotte", "innsats_veiledning_oppmotte",
+        "oppmotte_forberedende",
+        "oppmotte",
+        "deltakere_f2",
+        "arbeidsgivere",
+        "innkalt_intervju",
+        "aktuell_ordinaer_stilling",
+        "metode_etterlevelse",
+        "fatt_jobb",
+        "fatt_jobb_tiltak",
+        "fatt_jobb_nedsatt",
+        "fatt_jobb_veiledning",
+        "fatt_jobb_gode",
+        "jobb_hos_wo_ag",
+        "jobb_annen_ag",
+        "takket_nei",
+        "ansatt_med_tiltak",
+        "ungdomsgaranti_oppmotte",
+        "innsats_gode_oppmotte",
+        "innsats_nedsatt_oppmotte",
+        "innsats_veiledning_oppmotte",
         "ungdomsgaranti_jobb",
-        "dagsverk", "kostnader",
-        "har_gjennomforing", "har_data", "venter_pa_forms2",
+        "dagsverk",
+        "kostnader",
+        "har_gjennomforing",
+        "har_data",
+        "venter_pa_forms2",
     ]
     df = df[output_cols]
 
@@ -675,18 +683,20 @@ def extract_arbeidsgivere(
 
             ag_idx += 1
 
-            rows.append({
-                "workop_nr": wo_nr,
-                "ag_idx": ag_idx,
-                "navn": navn or None,
-                "bransje_raw": bransje_raw,
-                "bransje": _normaliser_bransje(bransje_raw),
-                "antall_ansatte": antall_ansatte,
-                "storrelse": _storrelse_kategori(antall_ansatte),
-                "rekrutteringsbehov": _safe_int(record[f2_cols[col_offset + 3]]),
-                "speedintervjuer": _safe_int(record[f2_cols[col_offset + 4]]),
-                "ansatt": _safe_int(record[f2_cols[col_offset + 5]]),
-            })
+            rows.append(
+                {
+                    "workop_nr": wo_nr,
+                    "ag_idx": ag_idx,
+                    "navn": navn or None,
+                    "bransje_raw": bransje_raw,
+                    "bransje": _normaliser_bransje(bransje_raw),
+                    "antall_ansatte": antall_ansatte,
+                    "storrelse": _storrelse_kategori(antall_ansatte),
+                    "rekrutteringsbehov": _safe_int(record[f2_cols[col_offset + 3]]),
+                    "speedintervjuer": _safe_int(record[f2_cols[col_offset + 4]]),
+                    "ansatt": _safe_int(record[f2_cols[col_offset + 5]]),
+                }
+            )
 
         if n_ag and ag_idx == 0:
             warns.append(f"WorkOp {wo_nr}: n_ag={n_ag} men ingen AG-data i slots")
@@ -694,10 +704,19 @@ def extract_arbeidsgivere(
     if rows:
         df_ag = pd.DataFrame(rows).sort_values(["workop_nr", "ag_idx"]).reset_index(drop=True)
     else:
-        df_ag = pd.DataFrame(columns=[
-            "workop_nr", "ag_idx", "navn", "bransje_raw",
-            "bransje", "antall_ansatte", "storrelse",
-            "rekrutteringsbehov", "speedintervjuer", "ansatt",
-        ])
+        df_ag = pd.DataFrame(
+            columns=[
+                "workop_nr",
+                "ag_idx",
+                "navn",
+                "bransje_raw",
+                "bransje",
+                "antall_ansatte",
+                "storrelse",
+                "rekrutteringsbehov",
+                "speedintervjuer",
+                "ansatt",
+            ]
+        )
 
     return df_ag, warns
