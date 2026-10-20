@@ -3,6 +3,10 @@ quarto_id := 'a191ebb5-1c8d-4d42-ac01-6740c3425c86'
 default:
     just --list
 
+auth:
+    gcloud auth application-default login
+    source .env.team-token
+
 install:
     uv sync
 
