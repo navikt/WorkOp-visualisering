@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    commit-message:
+      prefix: "⬆ "
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      minor-og-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      obs-obs-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
