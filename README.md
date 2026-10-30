@@ -33,6 +33,16 @@ Oppfølgingsskjemaet kobles til gjennomføringsskjemaet på dato og Nav-kontor, 
 WO-nummer, fordi WO-nummeret settes etter innsendingstidspunkt i hvert skjema.
 Finnes det et oppfølgingssvar uten en gjennomføring med samme dato og kontor,
 stopper uttrekket med en feilmelding som viser hvilket svar det gjelder.
+WorkOp-kolonnen i oppfølgingsskjemaet brukes ikke til koblingen, så det gjør ikke
+noe om nummereringen der er forskjøvet.
+
+#### Feilinnsendinger og reinnsendinger
+
+Har et kontor sendt inn skjemaet på nytt for å rette et svar, finnes det to rader
+med samme dato og kontor, og uttrekket stopper. Feilmeldingen viser Forms-`Id` for
+begge radene. Skriv `FORKASTET` i WorkOp-kolonnen på den feile raden i Excel. Raden
+utelates da, og det står en advarsel om det i `just extract`. Det samme gjelder
+gjennomføringsskjemaet.
 
 Gjennomføringsskjemaet leses på kolonnenavn, så nye spørsmål kan legges til i
 Forms uten at uttrekket brekker. Fritekstsvar hentes bevisst ikke ut — nettsiden

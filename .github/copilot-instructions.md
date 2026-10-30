@@ -74,6 +74,9 @@ brukes som nevner for resultattall.
    virker, f-strings inline gjør ikke. Formater i en code chunk først.
 5. **Ny `.qmd`-side må inn to steder i `_quarto.yml`**: både under
    `project.render` og under `website.navbar`.
+6. **Reinnsendinger i Forms gir to rader med samme dato og kontor.** Uttrekket
+   stopper med vilje. Brukeren merker den feile raden med `FORKASTET` i
+   WorkOp-kolonnen. Ikke legg inn automatisk «siste innsending vinner».
 
 ## Verifisering
 

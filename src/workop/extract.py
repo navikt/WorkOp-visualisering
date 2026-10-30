@@ -29,6 +29,10 @@ SEMANTIKK_GRENSE = 46
 # Antall arbeidsgiver-slots i Forms 2 branching
 AG_SLOTS = 7
 
+# Står denne verdien i WorkOp-kolonnen (uavhengig av store/små bokstaver), er
+# raden en feilinnsending som er erstattet av en ny. Den tas ikke med.
+FORKASTET_MARKOR = "forkastet"
+
 # ---------------------------------------------------------------------------
 # Forms 1 — feltoppslag på kolonnenavn
 #
@@ -407,6 +411,23 @@ def _fjern_testrader(df: pd.DataFrame) -> pd.DataFrame:
     return df[~er_test].copy()
 
 
+def _fjern_forkastede(df: pd.DataFrame, kilde: str) -> tuple[pd.DataFrame, list[str]]:
+    """
+    Fjerner feilinnsendinger, merket med FORKASTET i WorkOp-kolonnen.
+
+    Args:
+        df: Rå Forms-rader.
+        kilde: Navn på kilden, brukt i advarselsteksten.
+
+    Returnerer:
+        (df, advarsler) der df er uten de forkastede radene.
+    """
+    er_forkastet = df["WorkOp"].fillna("").str.strip().str.casefold().eq(FORKASTET_MARKOR)
+    antall = int(er_forkastet.sum())
+    warns = [f"{kilde}: {antall} innsending(er) merket FORKASTET er utelatt."] if antall else []
+    return df[~er_forkastet].copy(), warns
+
+
 def _normaliser_kontor(raw: object) -> str | None:
     """Normaliserer kontornavn for sammenligning: trimmet, enkelt mellomrom, casefold."""
     if not isinstance(raw, str) or not raw.strip():
@@ -424,19 +445,19 @@ def _les_forms1(f1_path: Path) -> tuple[pd.DataFrame, list[str]]:
     Leser Forms 1 til én rad per gjennomført WorkOp.
 
     WO-nummeret i Forms 1 er fasit for arrangementet. Rader uten WO-nummer
-    tas ikke med.
+    og rader merket FORKASTET tas ikke med.
 
     Returnerer:
         (f1_data, advarsler) der f1_data har `workop_nr` pluss feltene i FORMS1_FELT.
     """
-    f1 = _fjern_testrader(_read_forms_csv(f1_path))
+    f1, forkastet_warns = _fjern_forkastede(_fjern_testrader(_read_forms_csv(f1_path)), "Forms 1")
     f1 = f1[f1["WorkOp"].notna() & (f1["WorkOp"].str.strip() != "")].copy()
 
     # Fritekstfeltet «Har du noen forslag til endring i metoden …» hentes
     # bevisst ikke ut: dashbordet er offentlig, og fritekst skal bare leses i Forms.
     f1_felt, warns = _les_forms1_felt(f1)
     f1_data = pd.DataFrame({"workop_nr": f1["WorkOp"].str.strip().astype(int), **f1_felt})
-    return f1_data, warns
+    return f1_data, forkastet_warns + warns
 
 
 def _les_forms2(f2_path: Path, f1_data: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
@@ -455,6 +476,8 @@ def _les_forms2(f2_path: Path, f1_data: pd.DataFrame) -> tuple[pd.DataFrame, lis
     f2 = _read_forms_csv(f2_path)
     warns = _sjekk_skjema(f2.columns.tolist(), FORMS2_SKJEMA, "Forms 2")
     f2 = _fjern_testrader(f2)
+    f2, forkastet_warns = _fjern_forkastede(f2, "Forms 2")
+    warns += forkastet_warns
 
     f2_cols = f2.columns.tolist()
     nokkel_kol = ["WorkOp", f2_cols[6], f2_cols[7]]  # WO-nummer, dato, Nav-kontor
@@ -463,32 +486,29 @@ def _les_forms2(f2_path: Path, f1_data: pd.DataFrame) -> tuple[pd.DataFrame, lis
 
     f2_nokler = pd.DataFrame(
         {
-            "wo_oppgitt": pd.to_numeric(f2["WorkOp"].str.strip(), errors="coerce"),
+            "forms_id": f2["Id"].str.strip(),
             "dato_raw": f2[f2_cols[6]],
             "nav_kontor": f2[f2_cols[7]],
         },
         index=f2.index,
     )
-    f2["workop_nr"], kobling_warns = _koble_forms2_til_forms1(f1_data, f2_nokler)
-    return f2, warns + kobling_warns
+    f2["workop_nr"] = _koble_forms2_til_forms1(f1_data, f2_nokler)
+    return f2, warns
 
 
-def _koble_forms2_til_forms1(f1_data: pd.DataFrame, f2_nokler: pd.DataFrame) -> tuple[pd.Series, list[str]]:
+def _koble_forms2_til_forms1(f1_data: pd.DataFrame, f2_nokler: pd.DataFrame) -> pd.Series:
     """
     Finner WO-nummeret i Forms 1 for hvert Forms 2-svar.
 
-    WO-nummeret settes etter innsendingstidspunkt i hvert skjema, og er ikke
-    synkronisert mellom dem. Svarene kobles derfor på dato og Nav-kontor.
-    Reserve: kan datoen ikke tolkes i et av skjemaene, kobles svaret på
-    WO-nummer og Nav-kontor, med en advarsel.
+    Svarene kobles på dato og Nav-kontor. WorkOp-kolonnen i Forms 2 brukes ikke:
+    den regnes ut fra Forms-`Id` i Excel og forskyves av feilinnsendinger.
 
     Args:
         f1_data: Forms 1 med kolonnene `workop_nr`, `dato_raw` og `nav_kontor`.
-        f2_nokler: Forms 2 med kolonnene `wo_oppgitt`, `dato_raw` og `nav_kontor`.
+        f2_nokler: Forms 2 med kolonnene `forms_id`, `dato_raw` og `nav_kontor`.
 
     Returnerer:
-        (workop_nr, advarsler) der workop_nr er en Series med samme indeks som
-        f2_nokler.
+        workop_nr som Series med samme indeks som f2_nokler.
 
     Raises:
         Forms2KoblingError: hvis et svar ikke finner noen rad i Forms 1, treffer
@@ -504,29 +524,26 @@ def _koble_forms2_til_forms1(f1_data: pd.DataFrame, f2_nokler: pd.DataFrame) -> 
     per_nokkel: dict[tuple[datetime, str], list[int]] = {}
     for rad in f1.dropna(subset=["dato", "kontor"]).itertuples():
         per_nokkel.setdefault((rad.dato, rad.kontor), []).append(int(rad.workop_nr))
-    per_nummer = {int(rad.workop_nr): rad for rad in f1.itertuples()}
 
     koblet: dict[object, int] = {}
+    id_per_wo: dict[int, list[str]] = {}
     feil: list[str] = []
-    warns: list[str] = []
 
     for idx, svar in f2_nokler.iterrows():
         dato = _dato_eller_none(svar["dato_raw"])
         kontor = _normaliser_kontor(svar["nav_kontor"])
-        wo = int(svar["wo_oppgitt"]) if pd.notna(svar["wo_oppgitt"]) else None
         beskrivelse = (
-            f"Forms 2-svar ({'WO ' + str(wo) if wo is not None else 'uten WO-nummer'}, "
-            f"dato '{svar['dato_raw']}', kontor '{svar['nav_kontor']}')"
+            f"Forms 2-svar (Id {svar['forms_id']}, dato '{svar['dato_raw']}', kontor '{svar['nav_kontor']}')"
         )
 
-        kandidater = per_nokkel.get((dato, kontor), []) if dato and kontor else []
+        if dato is None:
+            feil.append(f"{beskrivelse}: datoen kan ikke tolkes.")
+            continue
+
+        kandidater = per_nokkel.get((dato, kontor), []) if kontor else []
         if len(kandidater) == 1:
             koblet[idx] = kandidater[0]
-            if wo is not None and wo != kandidater[0]:
-                warns.append(
-                    f"Forms 2-svaret merket WO {wo} har samme dato og Nav-kontor som "
-                    f"WO {kandidater[0]} i Forms 1, og er koblet dit."
-                )
+            id_per_wo.setdefault(kandidater[0], []).append(str(svar["forms_id"]))
             continue
         if len(kandidater) > 1:
             feil.append(
@@ -535,36 +552,25 @@ def _koble_forms2_til_forms1(f1_data: pd.DataFrame, f2_nokler: pd.DataFrame) -> 
             )
             continue
 
-        # Reserve når datoen ikke kan sammenlignes. Kontoret må fortsatt stemme.
-        f1_rad = per_nummer.get(wo) if wo is not None else None
-        dato_ukjent = dato is None or (f1_rad is not None and pd.isna(f1_rad.dato))
-        if f1_rad is not None and dato_ukjent and kontor is not None and kontor == f1_rad.kontor:
-            koblet[idx] = wo
-            warns.append(
-                f"WO {wo}: datoen kan ikke tolkes i ett av skjemaene. Forms 2-svaret er "
-                f"koblet til Forms 1 på WO-nummer og Nav-kontor."
-            )
-            continue
-
         feil.append(f"{beskrivelse} finner ingen WorkOp i Forms 1 med samme dato og Nav-kontor.")
 
-    treff_per_wo: dict[int, int] = {}
-    for wo_f1 in koblet.values():
-        treff_per_wo[wo_f1] = treff_per_wo.get(wo_f1, 0) + 1
-    for wo_f1, antall in sorted(treff_per_wo.items()):
-        if antall > 1:
-            feil.append(f"{antall} Forms 2-svar er koblet til WO {wo_f1} i Forms 1. Fjern duplikatet i Forms 2.")
+    for wo_f1, ider in sorted(id_per_wo.items()):
+        if len(ider) > 1:
+            feil.append(
+                f"{len(ider)} Forms 2-svar (Id {', '.join(ider)}) er koblet til WO {wo_f1} i Forms 1. "
+                f"Er det en reinnsending, skriv FORKASTET i WorkOp-kolonnen på den feile raden."
+            )
 
     if feil:
         raise Forms2KoblingError(
             "Forms 2 har svar som ikke kan kobles til en gjennomføring i Forms 1.\n"
-            "Forms 2 kobles på dato og Nav-kontor, ikke WO-nummer, fordi WO-nummeret "
-            "settes etter innsendingstidspunkt og ikke er synkronisert mellom skjemaene.\n"
-            "Rett dato eller Nav-kontor i ett av skjemaene, eller sjekk at arrangementet "
-            "er registrert i Forms 1:\n" + "\n".join(f"  - {f}" for f in feil)
+            "Forms 2 kobles på dato og Nav-kontor, ikke WO-nummer.\n"
+            "Rett dato eller Nav-kontor i ett av skjemaene, sjekk at arrangementet er "
+            "registrert i Forms 1, eller merk feilinnsendinger med FORKASTET i "
+            "WorkOp-kolonnen:\n" + "\n".join(f"  - {f}" for f in feil)
         )
 
-    return pd.Series(koblet, dtype=int).reindex(f2_nokler.index), warns
+    return pd.Series(koblet, dtype=int).reindex(f2_nokler.index)
 
 
 def _normaliser_bransje(raw: str | None) -> str | None:
