@@ -83,6 +83,14 @@ eller CSV-en.
 fjerner disse radene i begge skjemaene, før kobling og validering, og legger
 en advarsel med antallet. Markøren sjekkes uten hensyn til store og små bokstaver.
 
+**WO-nummeret i Forms 1 settes automatisk.** `_sett_workop_nr()` beholder
+nummeret i WorkOp-kolonnen for historiske rader (uten `Start time`). Innsendinger
+fra Forms nummereres fortløpende etter Forms-`Id`, fra
+`max(SEMANTIKK_GRENSE, høyeste historiske) + 1`, etter at test- og forkastede
+rader er fjernet. For disse radene brukes WorkOp-kolonnen bare til `FORKASTET`.
+Nummeret er bevisst ikke stabilt, og det er greit fordi Forms 2 kobles på dato og
+Nav-kontor.
+
 **3. Fritekst skal aldri ut av Forms.**
 Dashbordet er offentlig. Fritekstsvar (f.eks. «Har du noen forslag til endring i
 metoden …») hentes bevisst ikke ut, og skal ikke legges til i `FORMS1_FELT`.

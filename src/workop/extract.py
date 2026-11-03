@@ -440,23 +440,60 @@ def _dato_eller_none(raw: object) -> datetime | None:
     return _parse_forms_date(raw) if isinstance(raw, str) else None
 
 
+def _sett_workop_nr(f1: pd.DataFrame) -> pd.DataFrame:
+    """
+    Setter `workop_nr` på hver rad i Forms 1.
+
+    Historiske rader (limt inn fra gammel Excel, uten `Start time`) har
+    nummeret i WorkOp-kolonnen, og det beholdes. Innsendinger fra Forms (med
+    `Start time`) nummereres fortløpende i innsendingsrekkefølge (Forms-`Id`),
+    etter det høyeste historiske nummeret og aldri lavere enn
+    SEMANTIKK_GRENSE + 1. WorkOp-kolonnen brukes da bare til FORKASTET-merking.
+
+    Nummeret er ikke stabilt: forkastes en innsending, flyttes alle senere ett
+    hakk ned. Det går greit fordi Forms 2 kobles på dato og Nav-kontor.
+
+    Args:
+        f1: Forms 1-rader der test- og forkastede rader allerede er fjernet.
+
+    Returnerer:
+        Radene som skal med, med kolonnen `workop_nr`. Historiske rader uten
+        nummer (tomme rader) fjernes.
+    """
+    starttid = f1["Start time"] if "Start time" in f1.columns else pd.Series(None, index=f1.index, dtype=object)
+    fra_forms = starttid.fillna("").str.strip() != ""
+    har_nr = f1["WorkOp"].fillna("").str.strip() != ""
+
+    historiske = f1[~fra_forms & har_nr].copy()
+    historiske["workop_nr"] = historiske["WorkOp"].str.strip().astype(int)
+
+    nye = f1[fra_forms].copy()
+    rekkefolge = pd.to_numeric(nye["Id"], errors="coerce").sort_values(kind="stable", na_position="last").index
+    nye = nye.loc[rekkefolge]
+    forste = max(SEMANTIKK_GRENSE, int(historiske["workop_nr"].max()) if len(historiske) else 0) + 1
+    nye["workop_nr"] = range(forste, forste + len(nye))
+
+    return pd.concat([historiske, nye])
+
+
 def _les_forms1(f1_path: Path) -> tuple[pd.DataFrame, list[str]]:
     """
     Leser Forms 1 til én rad per gjennomført WorkOp.
 
-    WO-nummeret i Forms 1 er fasit for arrangementet. Rader uten WO-nummer
-    og rader merket FORKASTET tas ikke med.
+    WO-nummeret i Forms 1 er fasit for arrangementet. Nye innsendinger får
+    nummer automatisk, se `_sett_workop_nr()`. Testrader og rader merket
+    FORKASTET tas ikke med, og får heller ikke nummer.
 
     Returnerer:
         (f1_data, advarsler) der f1_data har `workop_nr` pluss feltene i FORMS1_FELT.
     """
     f1, forkastet_warns = _fjern_forkastede(_fjern_testrader(_read_forms_csv(f1_path)), "Forms 1")
-    f1 = f1[f1["WorkOp"].notna() & (f1["WorkOp"].str.strip() != "")].copy()
+    f1 = _sett_workop_nr(f1)
 
     # Fritekstfeltet «Har du noen forslag til endring i metoden …» hentes
     # bevisst ikke ut: dashbordet er offentlig, og fritekst skal bare leses i Forms.
     f1_felt, warns = _les_forms1_felt(f1)
-    f1_data = pd.DataFrame({"workop_nr": f1["WorkOp"].str.strip().astype(int), **f1_felt})
+    f1_data = pd.DataFrame({"workop_nr": f1["workop_nr"].astype(int), **f1_felt})
     return f1_data, forkastet_warns + warns
 
 

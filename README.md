@@ -27,7 +27,13 @@ Data samles inn i to steg per WorkOp-arrangement:
 2. Lagre som CSV i `data/`:
    - `data/Rett etter gjennomføring av WorkOp(Sheet1).csv`
    - `data/Hvor mange fikk jobb etter WorkOp.csv`
-3. Kjør `just render` for å bygge oppdatert nettside. OBS! Husk å legge til tall for WO-nummer i gjennomføringsskjemaet, ellers vises de ikke
+3. Kjør `just render` for å bygge oppdatert nettside.
+
+WO-nummeret settes automatisk. Nye svar i gjennomføringsskjemaet nummereres
+fortløpende etter Forms-`Id`, fra 47 og oppover. WorkOp-kolonnen kan stå tom, og
+tall du skriver der brukes ikke. Nummeret er ikke stabilt: forkaster du et svar,
+rykker alle senere svar ett nummer ned. WO 1–46 er historiske tall fra gammel
+Excel og beholder nummeret i WorkOp-kolonnen.
 
 Oppfølgingsskjemaet kobles til gjennomføringsskjemaet på dato og Nav-kontor, ikke
 WO-nummer, fordi WO-nummeret settes etter innsendingstidspunkt i hvert skjema.
